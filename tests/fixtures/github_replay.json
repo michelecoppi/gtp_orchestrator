@@ -1,0 +1,244 @@
+{
+ "GET /repos/michelecoppi/guess_the_player_from_the_path": {
+  "body": {
+   "archived": false,
+   "default_branch": "main",
+   "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path",
+   "open_issues_count": 5,
+   "private": false,
+   "pushed_at": "2026-09-28T07:00:00Z"
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/actions/runs?head_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&per_page=20": {
+  "body": {
+   "workflow_runs": []
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/actions/workflows/backup.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": [
+    {
+     "conclusion": "success",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/300",
+     "id": 300,
+     "path": ".github/workflows/backup.yml",
+     "run_attempt": 1,
+     "run_number": 300,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    }
+   ]
+  },
+  "headers": {
+   "ETag": "W/\"backup.yml-1-300\""
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/actions/workflows/ci.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": [
+    {
+     "conclusion": "failure",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/101",
+     "id": 101,
+     "path": ".github/workflows/ci.yml",
+     "run_attempt": 1,
+     "run_number": 101,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    },
+    {
+     "conclusion": "success",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/100",
+     "id": 100,
+     "path": ".github/workflows/ci.yml",
+     "run_attempt": 1,
+     "run_number": 100,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    }
+   ]
+  },
+  "headers": {
+   "ETag": "W/\"ci.yml-2-101\""
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/actions/workflows/deploy.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": [
+    {
+     "conclusion": "success",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/200",
+     "id": 200,
+     "path": ".github/workflows/deploy.yml",
+     "run_attempt": 1,
+     "run_number": 200,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    }
+   ]
+  },
+  "headers": {
+   "ETag": "W/\"deploy.yml-1-200\""
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/actions/workflows/restore-verification.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": []
+  },
+  "headers": {
+   "ETag": "W/\"restore-verification.yml-0-0\""
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/branches/main": {
+  "body": {
+   "commit": {
+    "commit": {
+     "committer": {
+      "date": "2026-09-28T06:00:00Z"
+     },
+     "message": "feat: ultimo commit\n\ncorpo"
+    },
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
+  }
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/issues": {
+  "body": [
+   {
+    "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/issues/1",
+    "labels": [
+     {
+      "name": "bug"
+     }
+    ],
+    "number": 1,
+    "state": "open",
+    "title": "Titolo",
+    "updated_at": "2026-09-27T10:00:00Z",
+    "user": {
+     "login": "michelecoppi"
+    }
+   },
+   {
+    "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/issues/2",
+    "labels": [
+     {
+      "name": "bug"
+     }
+    ],
+    "number": 2,
+    "pull_request": {
+     "merged_at": "2026-09-27T10:00:00Z"
+    },
+    "state": "closed",
+    "title": "Titolo",
+    "updated_at": "2026-09-27T10:00:00Z",
+    "user": {
+     "login": "michelecoppi"
+    }
+   }
+  ]
+ },
+ "GET /repos/michelecoppi/guess_the_player_from_the_path/pulls?page=1&per_page=50&state=open": {
+  "body": [
+   {
+    "created_at": "2026-09-27T09:00:00Z",
+    "draft": false,
+    "head": {
+     "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/pull/3",
+    "number": 3,
+    "title": "feat: qualcosa",
+    "user": {
+     "login": "michelecoppi"
+    }
+   }
+  ]
+ },
+ "GET /repos/michelecoppi/promo_studio": {
+  "body": {
+   "archived": false,
+   "default_branch": "claude/new-session-dorwhk",
+   "html_url": "https://github.com/michelecoppi/promo_studio",
+   "open_issues_count": 5,
+   "private": false,
+   "pushed_at": "2026-09-28T07:00:00Z"
+  }
+ },
+ "GET /repos/michelecoppi/promo_studio/actions/workflows/ci.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": [
+    {
+     "conclusion": "success",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/5",
+     "id": 5,
+     "path": ".github/workflows/ci.yml",
+     "run_attempt": 1,
+     "run_number": 5,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    }
+   ]
+  },
+  "headers": {
+   "ETag": "W/\"ci.yml-1-5\""
+  }
+ },
+ "GET /repos/michelecoppi/promo_studio/actions/workflows/promo.yml/runs?page=1&per_page=30": {
+  "body": {
+   "workflow_runs": [
+    {
+     "conclusion": "success",
+     "event": "push",
+     "head_branch": "main",
+     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "html_url": "https://github.com/michelecoppi/guess_the_player_from_the_path/actions/runs/6",
+     "id": 6,
+     "path": ".github/workflows/promo.yml",
+     "run_attempt": 1,
+     "run_number": 6,
+     "status": "completed",
+     "updated_at": "2026-09-28T07:00:00Z"
+    }
+   ]
+  },
+  "headers": {
+   "ETag": "W/\"promo.yml-1-6\""
+  }
+ },
+ "GET /repos/michelecoppi/promo_studio/branches/claude/new-session-dorwhk": {
+  "body": {
+   "commit": {
+    "commit": {
+     "committer": {
+      "date": "2026-09-28T06:00:00Z"
+     },
+     "message": "feat: ultimo commit\n\ncorpo"
+    },
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
+  }
+ },
+ "GET /repos/michelecoppi/promo_studio/issues": {
+  "body": []
+ },
+ "GET /repos/michelecoppi/promo_studio/pulls?page=1&per_page=50&state=open": {
+  "body": []
+ }
+}

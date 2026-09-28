@@ -1,0 +1,106 @@
+name: Observe
+
+# Giro di osservazione in sola lettura e brief mattutino.
+# Orari in UTC: ogni 3 ore di giorno (6 giri, ~1-2 minuti ciascuno) + brief alle 08:00 Europe/Rome
+# (due cron per l'ora legale: si esegue solo quello che cade alle 08 di Roma).
+on:
+  schedule:
+    - cron: "7 5-20/3 * * *"
+    - cron: "0 6,7 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo lettura: non scrive stato e non invia notifiche"
+        type: boolean
+        default: true
+      brief:
+        description: "Scrive anche il brief (e lo invia se dry_run e' false)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation verso GCP
+
+concurrency:
+  group: supervisor-observe
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: github.repository == 'michelecoppi/gtp_supervisor'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUP_ENABLED: ${{ vars.SUP_ENABLED }}
+      SUP_STORE: firestore
+      SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
+      SUP_GAME_FIRESTORE_PROJECT: ${{ vars.SUP_GAME_FIRESTORE_PROJECT }}
+      SUP_ADMIN_CHAT_ID: ${{ vars.SUP_ADMIN_CHAT_ID }}
+      # Bot approvazioni di Promo Studio: solo sendMessage (docs/adr/0002-bot-condiviso.md).
+      SUP_TELEGRAM_BOT_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt -e .
+
+      - name: Che cosa eseguire
+        id: job
+        run: |
+          dry="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
+          brief=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            brief="${{ inputs.brief }}"
+          elif [ "${{ github.event.schedule }}" = "0 6,7 * * *" ]; then
+            [ "$(TZ=Europe/Rome date +%H)" = "08" ] && brief=true
+            [ "$brief" = "true" ] || { echo "non sono le 08 a Roma: salto"; echo "skip=true" >> "$GITHUB_OUTPUT"; }
+          fi
+          echo "dry=$dry" >> "$GITHUB_OUTPUT"
+          echo "brief=$brief" >> "$GITHUB_OUTPUT"
+
+      # Token GitHub App in sola lettura sui due repository osservati (docs/runbook.md).
+      - uses: actions/create-github-app-token@v2
+        if: steps.job.outputs.skip != 'true'
+        id: app
+        with:
+          app-id: ${{ vars.SUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
+          owner: michelecoppi
+          repositories: guess_the_player_from_the_path,promo_studio
+
+      - uses: google-github-actions/auth@v2
+        if: steps.job.outputs.skip != 'true'
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Osservazione
+        if: steps.job.outputs.skip != 'true'
+        env:
+          SUP_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          if [ "${{ steps.job.outputs.dry }}" = "true" ]; then
+            python -m supervisor observe --dry-run
+          else
+            python -m supervisor observe --notify-findings
+          fi
+
+      - name: Brief
+        if: steps.job.outputs.skip != 'true' && steps.job.outputs.brief == 'true'
+        run: |
+          if [ "${{ steps.job.outputs.dry }}" = "true" ]; then
+            python -m supervisor report --out out/brief.md
+          else
+            python -m supervisor report --out out/brief.md --notify
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.job.outputs.brief == 'true'
+        with:
+          name: brief-${{ github.run_id }}
+          path: out/
+          retention-days: 14
+          if-no-files-found: ignore

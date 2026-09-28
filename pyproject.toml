@@ -1,0 +1,37 @@
+[project]
+name = "gtp-supervisor"
+version = "0.1.0"
+description = "Supervisore di Guess the Player from the Path e Promo Studio: osserva sviluppo e promozione, registra i fatti, segnala i problemi."
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["supervisor", "factory"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["firestore: richiede l'emulatore Firestore (FIRESTORE_EMULATOR_HOST)"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["supervisor.core", "supervisor.state", "supervisor.rules"]
+ignore_missing_imports = true
+check_untyped_defs = true

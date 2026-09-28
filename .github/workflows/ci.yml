@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements-dev.txt -e .
+      - run: ruff check .
+      - run: mypy
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      # Il contratto dello stato gira anche su Firestore vero (emulatore), non solo su SQLite.
+      - name: Avvia l'emulatore Firestore
+        run: |
+          gcloud components install cloud-firestore-emulator --quiet
+          nohup gcloud emulators firestore start --host-port=127.0.0.1:8571 > /tmp/firestore.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -s -o /dev/null http://127.0.0.1:8571/; then
+              echo "emulatore pronto"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "l'emulatore non e' partito entro 60 secondi"
+          cat /tmp/firestore.log
+          exit 1
+
+      - name: Test
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8571
+        run: python -m pytest -q

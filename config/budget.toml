@@ -1,0 +1,16 @@
+# Budget AI proposto per M2 (specifica, sez. 9). NON letto in M1: nessuna chiamata a pagamento.
+# In M2 il tetto sara' applicato da una prenotazione atomica in transazione, non da questo file.
+currency = "USD"
+timezone = "Europe/Rome"
+daily_soft_limit = 0.50
+daily_hard_limit = 1.00
+monthly_soft_limit = 10.00
+monthly_hard_limit = 15.00
+require_atomic_reservation = true
+
+[limits]
+engineering_tasks_per_repo = 1
+max_fix_attempts = 2
+max_llm_calls_per_task = 8
+max_paid_tool_calls_per_task = 3
+astra_enabled = false

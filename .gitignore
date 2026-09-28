@@ -1,0 +1,14 @@
+.env
+*.json.key
+*-key.json
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+# Stato locale (SUP_STORE=sqlite) e brief generati: dati operativi, non codice.
+*.sqlite3
+out/
+*.egg-info/
+build/

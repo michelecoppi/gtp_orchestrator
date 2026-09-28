@@ -1,0 +1,20 @@
+# Sorgenti osservate dal supervisore. Nessun segreto qui: token e progetti arrivano dall'ambiente.
+# Ogni repository produce i flussi #repo, #runs:<workflow>, #issues e #pulls (vedi collectors/github.py).
+
+[[github]]
+repo = "michelecoppi/guess_the_player_from_the_path"
+expected_default_branch = "main"
+ci_workflow = "ci.yml"
+deploy_workflow = "deploy.yml"
+workflows = ["ci.yml", "deploy.yml", "backup.yml", "restore-verification.yml"]
+
+[[github]]
+repo = "michelecoppi/promo_studio"
+expected_default_branch = "main"
+ci_workflow = "ci.yml"
+workflows = ["ci.yml", "promo.yml"]
+
+[promo]
+# Coda di Promo Studio nel Firestore del gioco, letta in sola lettura.
+collection = "promo_posts"
+stale_draft_hours = 24

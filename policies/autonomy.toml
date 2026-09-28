@@ -1,0 +1,17 @@
+# Politica di autonomia versionata. M1 = livello "observe": sola lettura.
+# Le azioni non elencate come "auto" sono negate. Cambiare questo file richiede review umana dedicata.
+version = 1
+level = "observe"
+
+[actions]
+read_repositories = "auto"
+read_promo_queue = "auto"
+write_supervisor_state = "auto"
+send_private_report = "auto"          # sendMessage all'admin, bot Promo condiviso
+create_issue = "deny"                 # da M3, solo Backlog + etichetta `supervisor`
+create_branch_or_draft_pr = "deny"    # da M3
+call_paid_llm = "deny"                # da M2, entro budget approvato
+merge_or_deploy = "human"
+publish_content = "human"
+change_feature_flags_or_experiments = "human"
+spend_money = "human"
