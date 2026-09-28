@@ -4,9 +4,9 @@ Supervisore di [Guess the Player from the Path](https://github.com/michelecoppi/
 [Promo Studio](https://github.com/michelecoppi/promo_studio). Osserva sviluppo e promozione, registra fatti
 verificabili, riconosce i problemi con regole deterministiche e manda a Michele un brief quotidiano.
 
-Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Questa è la **tranche M0 + M1**:
+Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0, M1 e M2**:
 - sola lettura sui repository osservati;
-- nessuna chiamata AI;
+- AI solo per il triage, entro un budget approvato e con prenotazione atomica (spenta finché Michele non la attiva);
 - nessuna azione senza approvazione.
 
 ```mermaid
@@ -16,6 +16,8 @@ flowchart LR
     C --> S[("Stato Firestore<br/>progetto dedicato")]
     C --> R["Regole deterministiche"]
     R --> S
+    S --> T["Triage AI<br/>gateway + budget"]
+    T --> S
     S --> B["Brief Markdown<br/>+ Telegram"]
 ```
 
@@ -36,6 +38,10 @@ flowchart LR
 
   I finding si chiudono da soli quando la condizione sparisce.
 - **Brief** deterministico: artifact di Actions e messaggio sul bot approvazioni di Promo (solo `sendMessage`).
+- **Triage AI** (M2): per i finding nuovi un modello economico propone priorità, ruolo e prossimo passo. La
+  proposta è validata da uno schema chiuso e non esegue nulla.
+- **Gateway AI e budget**: policy, catalogo prezzi versionato, prenotazione atomica (1 USD/giorno, 15 USD/mese),
+  nessun retry né fallback automatico, riconciliazione delle chiamate dall'esito incerto.
 - **Garanzie**:
   - deduplicazione degli eventi;
   - cursori che non si perdono dopo un crash;
@@ -44,18 +50,18 @@ flowchart LR
   - "non disponibile" al posto di zero.
 
 ## Comandi
-`python -m supervisor observe | report | status | doctor | replay` — vedi [docs/runbook.md](docs/runbook.md).
+`python -m supervisor observe | report | status | doctor | replay | triage | budget | llm smoke` — vedi [docs/runbook.md](docs/runbook.md).
 
 ## Documenti
 - [Audit M0 delle integrazioni](docs/audit/m0-integrations.md)
 - [ADR 0001 — stato su Firestore](docs/adr/0001-stato-firestore.md)
 - [ADR 0002 — bot condiviso](docs/adr/0002-bot-condiviso.md)
+- [ADR 0003 — budget e gateway AI](docs/adr/0003-budget-e-gateway-ai.md)
 - [Runbook](docs/runbook.md) · [Regole per gli agenti](AGENTS.md)
 
 ## Prossime tranche
 | Fase | Contenuto |
 |---|---|
-| M2 | `LLMClient` (LiteLLM), catalogo prezzi versionato, prenotazione atomica del budget (15 USD/mese), triage in dry-run |
 | M3 | Worker engineering isolato, executor separato, draft PR nel rispetto di `AGENTS.md` del gioco |
 | M4 | `campaign_id`/`brief_id`, funnel PostHog, brief strutturati verso Promo |
 | M5–M6 | Confronto provider, runbook operativo completo |

@@ -5,7 +5,10 @@ Comandi:
 - `report`    scrive il brief dallo stato salvato (e con `--notify` lo manda su Telegram);
 - `status`    cursori, ultimo run, lock, notifiche rimaste in sospeso;
 - `doctor`    verifica configurazione, credenziali e raggiungibilita' (sempre in sola lettura);
-- `replay`    un giro di observe su fixture registrate, senza rete (sviluppo e test di recupero).
+- `replay`    un giro di observe su fixture registrate, senza rete (sviluppo e test di recupero);
+- `triage`    proposte di priorita' e prossimo passo per i finding nuovi (AI, entro budget);
+- `budget`    spesa, prenotazioni e riconciliazione delle chiamate dall'esito incerto;
+- `llm smoke` verifica a pagamento minima dell'accesso a un modello del catalogo.
 
 Con `SUP_ENABLED=false` funzionano solo `doctor`, `replay` e i `--dry-run` (che non scrivono e
 non inviano nulla). Codici di uscita: 0 ok (anche con sorgenti incomplete, che il report
@@ -15,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,14 +27,20 @@ from typing import Optional
 from supervisor.collectors.github import GitHubApi, GitHubCollector
 from supervisor.collectors.http import FixtureHttp, HttpClient, RequestsHttp
 from supervisor.collectors.promo import FirestorePostReader, PostReader, PromoCollector, StaticPostReader
+from supervisor.core.budget import BudgetLedger, load_budget, micros_to_usd, usd_to_micros
 from supervisor.core.clock import iso, parse_iso, utcnow
-from supervisor.core.config import ConfigError, Settings, Sources, load_sources
+from supervisor.core.config import PROVIDER_KEY_ENV, ConfigError, Settings, Sources, load_sources
 from supervisor.core.pipeline import LockBusy, observe
+from supervisor.core.policy import load_policy
 from supervisor.core.scrub import scrub
+from supervisor.llm.catalog import load_catalog, load_routing
+from supervisor.llm.client import LLMClient
+from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
 from supervisor.reporting.brief import build_brief, render_findings_alert, render_markdown, render_telegram
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state import open_store
-from supervisor.state.store import StateStore
+from supervisor.state.store import DECISIONS, StateStore
+from supervisor.workers.triage import run_triage
 
 log = logging.getLogger("supervisor")
 
@@ -47,6 +57,35 @@ def build_collectors(sources: Sources, settings: Settings, http: HttpClient,
 
 def _now(args) -> datetime:
     return parse_iso(args.now) if getattr(args, "now", None) else utcnow()
+
+
+def _llm_client(settings: Settings) -> Optional[LLMClient]:
+    if not settings.ai_enabled:
+        return None
+    try:
+        from supervisor.llm.litellm_client import LiteLLMClient
+
+        return LiteLLMClient()
+    except ImportError:
+        log.warning("litellm non installato (requirements-ai.txt): nessuna chiamata AI")
+        return None
+
+
+def build_gateway(settings: Settings, store: StateStore, client: Optional[LLMClient] = None) -> LLMGateway:
+    budget = load_budget(settings.config_dir)
+    return LLMGateway(
+        catalog=load_catalog(settings.config_dir), ledger=BudgetLedger(store, budget.limits), policy=load_policy(),
+        client=client if client is not None else _llm_client(settings), ai_enabled=settings.ai_enabled,
+        task_limits=budget.tasks,
+    )
+
+
+def _budget_summary(settings: Settings, store: StateStore, now: datetime) -> Optional[dict]:
+    try:
+        return BudgetLedger(store, load_budget(settings.config_dir).limits).summary(now)
+    except Exception as exc:  # il brief deterministico non dipende dal budget
+        log.warning("riepilogo budget non disponibile: %s", scrub(exc))
+        return None
 
 
 def _print_outcome(outcome) -> None:
@@ -101,8 +140,10 @@ def cmd_report(args, settings: Settings) -> int:
         args.notify = False
     store = open_store(settings)
     now = _now(args)
-    brief = build_brief(store.latest_snapshot(), store.open_findings(),
-                        store.events_since(iso(now - timedelta(hours=24))), now)
+    open_findings = store.open_findings()
+    decisions = {f.id: d for f in open_findings if (d := store.get_doc(DECISIONS, f.id))}
+    brief = build_brief(store.latest_snapshot(), open_findings, store.events_since(iso(now - timedelta(hours=24))),
+                        now, decisions=decisions, budget=_budget_summary(settings, store, now))
     markdown = render_markdown(brief)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +183,125 @@ def cmd_status(args, settings: Settings) -> int:
     return 0
 
 
+class _DryRunClient:
+    """In dry-run una chiamata reale per errore fallisce subito, senza rete."""
+
+    def complete(self, request):
+        raise RuntimeError("dry-run: nessuna chiamata")
+
+
+def cmd_triage(args, settings: Settings) -> int:
+    if not settings.enabled and not args.dry_run:
+        print("SUP_ENABLED=false: triage disabilitato (usare --dry-run)")
+        return 0
+    store = open_store(settings)
+    route = load_routing(settings.config_dir)["triage"]
+    gateway = build_gateway(settings, store, client=_DryRunClient() if args.dry_run else None)
+    items = run_triage(store, gateway, route.model, route.max_output_tokens, _now(args),
+                       limit=args.limit or route.max_items_per_run, dry_run=args.dry_run)
+    if not items:
+        print("nessun finding da triare")
+    for item in items:
+        cost = f" (stima {item.estimate_usd:.4f} USD)" if item.status == "dry_run" else ""
+        print(f"{item.status}: [{item.finding.severity}] {item.finding.subject}: {item.finding.statement}{cost}")
+        if item.decision and item.decision.get("state") == "proposed":
+            print(f"  -> {item.decision['priority']}/{item.decision['role']}: {item.decision['rationale_summary']}")
+        if item.detail:
+            print(f"  {item.detail}")
+    return 0
+
+
+def cmd_budget(args, settings: Settings) -> int:
+    store = open_store(settings)
+    ledger = BudgetLedger(store, load_budget(settings.config_dir).limits)
+    now = _now(args)
+    if args.reconcile:
+        if args.release:
+            usage = ledger.release(args.reconcile, now, "riconciliata a mano: non addebitata")
+        elif args.actual is not None:
+            usage = ledger.settle(args.reconcile, usd_to_micros(args.actual), now,
+                                  note="riconciliata a mano dalla dashboard del provider")
+        else:
+            print("indicare --actual USD (costo visto sulla dashboard del provider) oppure --release")
+            return 2
+        print(f"{usage['call_id']}: {usage['state']}, costo {micros_to_usd(usage.get('actual_micros') or 0):.4f} USD")
+        return 0
+    s = ledger.summary(now)
+    print(f"budget approvato: {s['approved']}")
+    print(f"mese {s['month']}: speso {micros_to_usd(s['month_actual']):.4f}, prenotato "
+          f"{micros_to_usd(s['month_reserved']):.4f}, tetto {micros_to_usd(s['month_hard']):.2f} USD")
+    print(f"oggi {s['day']}: speso {micros_to_usd(s['day_actual']):.4f}, prenotato "
+          f"{micros_to_usd(s['day_reserved']):.4f}, tetto {micros_to_usd(s['day_hard']):.2f} USD")
+    for usage in ledger.open_reservations():
+        print(f"  da riconciliare: {usage['call_id']} {usage['model']} "
+              f"{micros_to_usd(usage['reserved_micros']):.4f} USD ({usage['created_at']})")
+    return 0
+
+
+def cmd_llm_smoke(args, settings: Settings) -> int:
+    if not settings.enabled:
+        print("SUP_ENABLED=false: smoke test disabilitato")
+        return 0
+    store = open_store(settings)
+    route = load_routing(settings.config_dir).get("smoke")
+    now = _now(args)
+    try:
+        result = build_gateway(settings, store).call(
+            task_id=f"smoke-{args.model}-{now.strftime('%Y%m%dT%H%M%S')}", task="smoke", model_key=args.model,
+            system="Rispondi soltanto con la parola: ok", prompt="ok?",
+            max_output_tokens=route.max_output_tokens if route else 16, now=now, allow_unverified=True)
+    except (LLMBlocked, LLMCallFailed) as exc:
+        print(f"smoke {args.model}: KO - {exc}")
+        return 1
+    r = result.response
+    print(f"smoke {args.model}: OK - modello {r.model}, token {r.input_tokens}/{r.output_tokens}, "
+          f"costo {micros_to_usd(result.cost_micros):.6f} USD, risposta {r.text[:40]!r}")
+    print("Se il modello restituito e' quello atteso, impostare a mano access_verified = true in config/models.toml.")
+    return 0
+
+
+def _ai_checks(settings: Settings) -> list[tuple[str, bool, str]]:
+    """Controlli AI: informativi finche' SUP_AI_ENABLED=false, bloccanti quando e' attivo."""
+    strict = settings.ai_enabled
+    try:
+        catalog = load_catalog(settings.config_dir)
+        routing = load_routing(settings.config_dir)
+        budget = load_budget(settings.config_dir)
+        policy = load_policy()
+    except ConfigError as exc:
+        return [("ai config", False, str(exc))]
+    checks: list[tuple[str, bool, str]] = [
+        ("ai interruttore", True, f"SUP_AI_ENABLED={settings.ai_enabled}"),
+        ("ai policy", True, f"v{policy.version} call_paid_llm={policy.decide('call_paid_llm')}"),
+    ]
+    limits = budget.limits
+    checks.append(("ai budget", limits.approved or not strict,
+                   f"approvato da {limits.approved_by} il {limits.approved_on}" if limits.approved
+                   else "non approvato: nessuna chiamata a pagamento"))
+    for task, route in routing.items():
+        if not route.model:
+            continue
+        model = catalog.get(route.model)
+        if model is None:
+            checks.append((f"ai {task}", False, f"modello {route.model} assente dal catalogo"))
+            continue
+        ready = model.enabled and model.access_verified
+        checks.append((f"ai {task}", ready or not strict,
+                       f"{model.key}: " + ("pronto" if ready else "accesso non verificato o disabilitato")))
+        key_name = PROVIDER_KEY_ENV.get(model.provider, "")
+        has_key = bool(key_name and os.environ.get(key_name))
+        checks.append((f"ai chiave {model.provider}", has_key or not strict,
+                       f"{key_name} {'presente' if has_key else 'assente'}"))
+    if strict:
+        try:
+            import litellm  # noqa: F401
+
+            checks.append(("ai libreria", True, "litellm installato"))
+        except ImportError:
+            checks.append(("ai libreria", False, "pip install -r requirements-ai.txt"))
+    return checks
+
+
 def cmd_doctor(args, settings: Settings) -> int:
     checks: list[tuple[str, bool, str]] = []
     try:
@@ -178,6 +338,7 @@ def cmd_doctor(args, settings: Settings) -> int:
     ok, detail = TelegramNotifier(http, settings.telegram_bot_token, settings.admin_chat_id).check()
     checks.append(("telegram", ok or not settings.telegram_bot_token,
                    detail if settings.telegram_bot_token else "non configurato: nessuna notifica"))
+    checks.extend(_ai_checks(settings))
     for name, passed, detail in checks:
         print(f"{'OK ' if passed else 'KO '} {name}: {detail}")
     return 0 if all(passed for _, passed, _ in checks) else 1
@@ -204,6 +365,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--notify", action="store_true", help="invia il brief su Telegram")
     p.add_argument("--now", help=argparse.SUPPRESS)
     p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("triage", help="proposte AI per i finding senza decisione")
+    p.add_argument("--dry-run", action="store_true", help="stima costi e controlli, nessuna chiamata")
+    p.add_argument("--limit", type=int, help="massimo di finding in questo giro")
+    p.add_argument("--now", help=argparse.SUPPRESS)
+    p.set_defaults(fn=cmd_triage)
+
+    p = sub.add_parser("budget", help="spesa AI e riconciliazione")
+    p.add_argument("--reconcile", metavar="CALL_ID", help="chiude una chiamata dall'esito incerto")
+    group = p.add_mutually_exclusive_group()
+    group.add_argument("--actual", type=float, help="costo reale in USD visto sulla dashboard del provider")
+    group.add_argument("--release", action="store_true", help="la chiamata non e' stata addebitata")
+    p.add_argument("--now", help=argparse.SUPPRESS)
+    p.set_defaults(fn=cmd_budget)
+
+    p = sub.add_parser("llm", help="strumenti per i modelli")
+    llm_sub = p.add_subparsers(dest="llm_command", required=True)
+    s = llm_sub.add_parser("smoke", help="chiamata minima a pagamento per verificare l'accesso a un modello")
+    s.add_argument("model", help="chiave del catalogo, es. gpt-6-luna")
+    s.add_argument("--now", help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_llm_smoke)
 
     sub.add_parser("status", help="stato interno").set_defaults(fn=cmd_status)
     sub.add_parser("doctor", help="verifica configurazione e credenziali").set_defaults(fn=cmd_doctor)

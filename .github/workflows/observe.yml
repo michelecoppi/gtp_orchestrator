@@ -88,6 +88,23 @@ jobs:
             python -m supervisor observe --notify-findings
           fi
 
+      # Triage AI solo sui finding nuovi, entro il budget approvato (config/budget.toml) e con modelli
+      # verificati nel catalogo. Senza novita' non parte nessuna chiamata.
+      - name: Triage AI
+        if: steps.job.outputs.skip != 'true' && vars.SUP_AI_ENABLED == 'true'
+        env:
+          SUP_AI_ENABLED: "true"
+          OPENAI_API_KEY: ${{ secrets.SUP_OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.SUP_ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.SUP_GEMINI_API_KEY }}
+        run: |
+          pip install -r requirements-ai.txt
+          if [ "${{ steps.job.outputs.dry }}" = "true" ]; then
+            python -m supervisor triage --dry-run
+          else
+            python -m supervisor triage
+          fi
+
       - name: Brief
         if: steps.job.outputs.skip != 'true' && steps.job.outputs.brief == 'true'
         run: |

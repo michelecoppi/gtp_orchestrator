@@ -1,0 +1,74 @@
+# Catalogo modelli e prezzi (USD per milione di token, input ordinario / output).
+# Fonte: specifica GTP_Supervisor_Analisi_V1.md sez. 5.1, fonti ufficiali S1-S4 consultate il 2026-09-28.
+# I prezzi escludono tool, cache, tasse e supplementi. Per OpenAI valgono per la fascia short context:
+# `max_input_tokens` impedisce di finire per errore nella fascia long context.
+#
+# `access_verified = false`: l'accesso dall'account di Michele non e' ancora stato provato. Il gateway
+# rifiuta questi modelli; si verificano con `python -m supervisor llm smoke <key>` e poi si aggiorna qui
+# a mano (il router non cambia mai il catalogo da solo). Verificare anche gli id `litellm_model`.
+version = "2026-09-28"
+verified_on = "2026-09-28"
+
+[[models]]
+key = "gpt-6-luna"
+provider = "openai"
+litellm_model = "openai/gpt-6-luna"
+enabled = true
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 4000
+prices = [{ from = "2026-01-01", input = 0.10, output = 0.50 }]
+
+[[models]]
+key = "gpt-6-sol"
+provider = "openai"
+litellm_model = "openai/gpt-6-sol"
+enabled = true
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 2.00, output = 10.00 }]
+
+[[models]]
+key = "gpt-6-astra"
+provider = "openai"
+litellm_model = "openai/gpt-6-astra"
+enabled = false          # escalation eccezionale, disabilitata (budget.toml: astra_enabled = false)
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 10.00, output = 50.00 }]
+
+[[models]]
+key = "claude-sonnet-5"
+provider = "anthropic"
+litellm_model = "anthropic/claude-sonnet-5"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 2.00, output = 10.00 }]
+
+[[models]]
+key = "claude-opus-5-5"
+provider = "anthropic"
+litellm_model = "anthropic/claude-opus-5-5"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 4.00, output = 20.00 }]
+
+[[models]]
+key = "gemini-3.8-flash"
+provider = "google"
+litellm_model = "gemini/gemini-3.8-flash"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 8000
+# Prezzo promozionale fino al 31/12/2026, poi listino. L'output include i thinking token.
+prices = [
+  { from = "2026-01-01", until = "2026-12-31", input = 0.75, output = 3.75 },
+  { from = "2027-01-01", input = 1.50, output = 7.50 },
+]

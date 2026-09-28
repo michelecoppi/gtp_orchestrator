@@ -25,6 +25,8 @@
    | secret | `SUP_WIF_PROVIDER` | risorsa del provider WIF |
    | secret | `SUP_WIF_SERVICE_ACCOUNT` | email del service account |
    | secret | `PROMO_APPROVAL_BOT_TOKEN` | token del bot approvazioni di Promo (ADR 0002) |
+   | variable | `SUP_AI_ENABLED` | `false` finché non si completano i passi di "Attivare l'AI" |
+   | secret | `SUP_OPENAI_API_KEY` | chiave dedicata al supervisore (poi `SUP_ANTHROPIC_API_KEY`, `SUP_GEMINI_API_KEY`) |
 
 6. **Primo avvio:** *Actions → Observe → Run workflow* con `dry_run = true`. Controllare il log e l'artifact
    `brief-*`. Poi impostare `SUP_ENABLED=true`.
@@ -50,8 +52,34 @@ python -m supervisor replay --fixtures tests/fixtures/github_replay.json --promo
 | `status` mostra notifiche "in sospeso" | Un invio è stato interrotto a metà. Controllare su Telegram se il messaggio è arrivato. Non viene ripetuto in automatico. |
 | Finding che non si chiude | Le regole di stato si chiudono solo con dati completi della sorgente; quelle di workflow con una run verde successiva sul branch di default. |
 | Emergenza | Impostare `SUP_ENABLED=false`: resteranno attivi solo `doctor` e i dry-run. |
+| Triage `blocked` | Il motivo è scritto accanto: budget non approvato, modello non verificato, tetto raggiunto, `SUP_AI_ENABLED` spento. Nessuna chiamata è partita. |
+| `budget` mostra "da riconciliare" | Una chiamata è finita in timeout o in crash. Controllare sulla dashboard del provider se è stata addebitata, poi `budget --reconcile <call_id> --actual <USD>` oppure `--release`. Fino ad allora quel task non riparte. |
+| Emergenza AI | Impostare `SUP_AI_ENABLED=false` (variabile del repository): osservazione e report continuano. |
 
-## Costi attesi M1
+## Attivare l'AI (M2)
+
+Da fare in quest'ordine. Ogni passo è una decisione di Michele.
+
+1. **Chiavi dedicate** al supervisore, con un limite di spesa impostato anche sul provider quando possibile.
+   Secret: `SUP_OPENAI_API_KEY` e, quando serviranno, `SUP_ANTHROPIC_API_KEY` e `SUP_GEMINI_API_KEY`.
+2. **Approvare il budget** in `config/budget.toml`: `approved = true`, `approved_by`, `approved_on`, tramite commit
+   con review.
+3. **Verificare l'accesso** al modello del triage, in locale o con un dispatch:
+   ```bash
+   SUP_ENABLED=true SUP_AI_ENABLED=true OPENAI_API_KEY=... python -m supervisor llm smoke gpt-6-luna
+   ```
+   Controllare che il modello restituito e il costo siano quelli attesi, poi impostare `access_verified = true`
+   per quel modello in `config/models.toml` (commit con review). Verificare anche l'id `litellm_model`.
+4. **Provare in dry-run**: `python -m supervisor triage --dry-run` mostra, per ogni finding, la stima di costo e gli
+   eventuali blocchi.
+5. Impostare la variabile `SUP_AI_ENABLED=true`. Da quel momento il workflow Observe tria i finding nuovi e il
+   brief mostra proposte e budget.
+
+Prima di cambiare un prezzo o un modello: aggiornare `config/models.toml` (nuova `version`, fonte e data di
+verifica). Il router non cambia provider né prezzi da solo.
+
+## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.
 - Firestore: poche centinaia di scritture al giorno, entro la quota gratuita (da verificare sul billing).
-- Nessuna chiamata AI.
+- AI: triage con GPT-6 Luna a circa 0,0004 USD per finding (stima pessimista con 600 token di output). Il tetto
+  resta 15 USD al mese e 1 USD al giorno.

@@ -1,0 +1,12 @@
+# Instradamento dei task verso i modelli (specifica, sez. 5.3).
+# Nessun fallback automatico: un fallback paga a sua volta e richiede una decisione esplicita.
+# Se il modello non e' disponibile il task si rinvia e il report deterministico resta valido.
+
+[tasks.triage]
+model = "gpt-6-luna"
+max_output_tokens = 600
+# Massimo di finding triati per giro: i controlli senza variazioni non chiamano mai un modello.
+max_items_per_run = 10
+
+[tasks.smoke]
+max_output_tokens = 16

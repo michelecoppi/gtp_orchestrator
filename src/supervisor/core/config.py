@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = ROOT / "config"
 STORES = ("firestore", "sqlite", "memory")
 _SECRET_FIELDS = ("github_token", "telegram_bot_token")
+# Chiavi dei provider AI: le legge LiteLLM dall'ambiente, qui si registrano solo presso lo scrubber.
+PROVIDER_KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "google": "GEMINI_API_KEY"}
 
 
 class ConfigError(ValueError):
@@ -87,6 +89,7 @@ def _flag(value: Optional[str]) -> bool:
 @dataclass(frozen=True, repr=False)
 class Settings:
     enabled: bool = False
+    ai_enabled: bool = False
     store: str = "sqlite"
     sqlite_path: str = "supervisor.sqlite3"
     firestore_project: str = ""
@@ -101,6 +104,7 @@ class Settings:
         env = dict(os.environ if env is None else env)
         settings = cls(
             enabled=_flag(env.get("SUP_ENABLED")),
+            ai_enabled=_flag(env.get("SUP_AI_ENABLED")),
             store=(env.get("SUP_STORE") or "sqlite").strip().lower(),
             sqlite_path=env.get("SUP_SQLITE_PATH") or "supervisor.sqlite3",
             firestore_project=env.get("SUP_FIRESTORE_PROJECT", ""),
@@ -112,7 +116,8 @@ class Settings:
         )
         if settings.store not in STORES:
             raise ConfigError(f"SUP_STORE non valido: {settings.store!r} (ammessi: {', '.join(STORES)})")
-        register_secrets(settings.github_token, settings.telegram_bot_token)
+        register_secrets(settings.github_token, settings.telegram_bot_token,
+                         *(env.get(name) for name in PROVIDER_KEY_ENV.values()))
         return settings
 
     def __repr__(self) -> str:

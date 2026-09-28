@@ -1,5 +1,9 @@
-# Budget AI proposto per M2 (specifica, sez. 9). NON letto in M1: nessuna chiamata a pagamento.
-# In M2 il tetto sara' applicato da una prenotazione atomica in transazione, non da questo file.
+# Budget AI (specifica, sez. 9). Il tetto e' applicato da core/budget.py con una prenotazione atomica
+# in transazione prima di ogni chiamata; questo file fissa solo i valori.
+# Finche' `approved = false` nessuna chiamata a pagamento parte, qualunque altra impostazione ci sia.
+approved = false
+approved_by = ""       # es. "Michele Coppi"
+approved_on = ""       # es. "2026-09-29"
 currency = "USD"
 timezone = "Europe/Rome"
 daily_soft_limit = 0.50

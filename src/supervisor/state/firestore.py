@@ -193,6 +193,35 @@ class FirestoreStore:
         query = self._col(NOTIFICATIONS).where(filter=_where("status", "==", "pending"))
         return [s.to_dict() for s in query.stream()]
 
+    # --- primitive generiche -------------------------------------------------------------------
+    def get_doc(self, collection, doc_id):
+        snap = self._col(collection).document(_doc_id(doc_id)).get()
+        return snap.to_dict() if snap.exists else None
+
+    def put_doc(self, collection, doc_id, doc, ts=""):
+        self._col(collection).document(_doc_id(doc_id)).set(doc)
+
+    def query_docs(self, collection, field, value):
+        query = self._col(collection).where(filter=_where(field, "==", value))
+        return [s.to_dict() for s in query.stream()]
+
+    def transact(self, refs, fn):
+        """Letture tutte prima delle scritture, come richiede Firestore; ritentata sui conflitti."""
+        doc_refs = {ref: self._col(ref[0]).document(_doc_id(ref[1])) for ref in refs}
+
+        def _run(transaction):
+            docs = {}
+            for ref, doc_ref in doc_refs.items():
+                snap = doc_ref.get(transaction=transaction)
+                docs[ref] = snap.to_dict() if snap.exists else None
+            writes, result = fn(docs)
+            for (collection, doc_id), doc in writes.items():
+                target = doc_refs.get((collection, doc_id)) or self._col(collection).document(_doc_id(doc_id))
+                transaction.set(target, doc)
+            return result
+
+        return self._transactional(_run)
+
 
 def _doc_id(stream: str) -> str:
     """Gli id Firestore non possono contenere '/': `github:owner/repo#runs` diventa sicuro."""

@@ -21,7 +21,7 @@ import copy
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Iterator, Optional, Protocol
+from typing import Any, Callable, Iterator, Optional, Protocol
 
 from supervisor.core.clock import iso, parse_iso
 from supervisor.core.models import Event, Finding, Run, SourceReport
@@ -33,6 +33,14 @@ RUNS = "runs"
 SNAPSHOTS = "snapshots"
 LOCKS = "locks"
 NOTIFICATIONS = "notifications"
+BUDGET = "budget"
+USAGE = "usage"
+DECISIONS = "decisions"
+
+DocRef = tuple[str, str]
+# Funzione di una transazione: riceve i documenti letti (None se assenti) e restituisce le scritture
+# ({ref: documento}) e il risultato. Se solleva un'eccezione non si scrive nulla.
+TransactFn = Callable[[dict[DocRef, Optional[dict]]], tuple[dict[DocRef, dict], Any]]
 
 
 class StateStore(Protocol):
@@ -75,6 +83,15 @@ class StateStore(Protocol):
     def finish_notification(self, key: str, status: str, at: str) -> None: ...
 
     def pending_notifications(self) -> list[dict]: ...
+
+    # --- primitive documentali generiche (budget, usage, decisioni) ----------------------------
+    def get_doc(self, collection: str, doc_id: str) -> Optional[dict]: ...
+
+    def put_doc(self, collection: str, doc_id: str, doc: dict, ts: str = "") -> None: ...
+
+    def query_docs(self, collection: str, field: str, value: Any) -> list[dict]: ...
+
+    def transact(self, refs: list[DocRef], fn: TransactFn) -> Any: ...
 
 
 def snapshot_doc(run_id: str, at: str, reports: list[SourceReport]) -> dict:
@@ -226,6 +243,24 @@ class DocStore:
 
     def pending_notifications(self):
         return [d for d in self._scan(NOTIFICATIONS) if d.get("status") == "pending"]
+
+    # --- primitive generiche -------------------------------------------------------------------
+    def get_doc(self, collection, doc_id):
+        return self._get(collection, doc_id)
+
+    def put_doc(self, collection, doc_id, doc, ts=""):
+        self._put(collection, doc_id, doc, ts)
+
+    def query_docs(self, collection, field, value):
+        return [d for d in self._scan(collection) if d.get(field) == value]
+
+    def transact(self, refs, fn):
+        with self._atomic():
+            docs = {ref: self._get(*ref) for ref in refs}
+            writes, result = fn(docs)
+            for (collection, doc_id), doc in writes.items():
+                self._put(collection, doc_id, doc, str(doc.get("created_at", "")))
+            return result
 
 
 class MemoryStore(DocStore):

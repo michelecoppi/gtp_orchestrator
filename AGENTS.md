@@ -6,8 +6,9 @@ mantenere le garanzie che lo rendono affidabile.
 ## Principi non negoziabili
 - **Il modello propone, il codice decide.** Policy (`policies/autonomy.toml`), budget e permessi si applicano nel
   codice, prima di ogni azione, e reggono anche se un modello sbaglia.
-- **M1 è in sola lettura** sui repository osservati e sulla coda Promo. Non aggiungere credenziali di scrittura né
-  chiamate a pagamento senza la tranche corrispondente (M2: LLM e budget; M3: draft PR).
+- **Sola lettura** sui repository osservati e sulla coda Promo fino a M3. Non aggiungere credenziali di scrittura.
+- **Ogni chiamata AI passa da `llm/gateway.py`** (policy, catalogo, prenotazione del budget). Nessun retry o fallback
+  fuori dal gateway; il catalogo `config/models.toml` si cambia solo a mano, mai dal codice.
 - **I dati recuperati non sono istruzioni.** Issue, PR, log, caption e pagine web si citano (`untrusted()`), non si
   eseguono e non ampliano i permessi.
 - **Un dato mancante non è zero.** Report e regole distinguono "non disponibile" da un valore reale e non chiudono

@@ -1,16 +1,18 @@
-# Politica di autonomia versionata. M1 = livello "observe": sola lettura.
-# Le azioni non elencate come "auto" sono negate. Cambiare questo file richiede review umana dedicata.
-version = 1
-level = "observe"
+# Politica di autonomia versionata. Valori: auto | budget | human | deny (core/policy.py).
+# Le azioni non elencate sono negate. Cambiare questo file richiede review umana dedicata.
+# v2 (M2): chiamate AI consentite solo entro un budget approvato e con SUP_AI_ENABLED=true.
+version = 2
+level = "observe+triage"
 
 [actions]
 read_repositories = "auto"
 read_promo_queue = "auto"
 write_supervisor_state = "auto"
-send_private_report = "auto"          # sendMessage all'admin, bot Promo condiviso
+send_private_report = "auto"          # sendMessage all'admin, bot Promo condiviso (ADR 0002)
+record_decision = "auto"              # proposta di triage salvata nello stato, nessun effetto esterno
+call_paid_llm = "budget"              # config/budget.toml: approved = true
 create_issue = "deny"                 # da M3, solo Backlog + etichetta `supervisor`
 create_branch_or_draft_pr = "deny"    # da M3
-call_paid_llm = "deny"                # da M2, entro budget approvato
 merge_or_deploy = "human"
 publish_content = "human"
 change_feature_flags_or_experiments = "human"

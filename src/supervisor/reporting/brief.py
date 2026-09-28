@@ -37,7 +37,8 @@ class Brief:
 
 
 def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_24h: list[Event],
-                now: datetime) -> Brief:
+                now: datetime, decisions: Optional[dict[str, dict]] = None,
+                budget: Optional[dict] = None) -> Brief:
     title = f"Brief GTP Supervisor — {rome_label(now)} (Europe/Rome)"
     if not snapshot:
         return Brief(title, ["Nessuno snapshot salvato: eseguire prima `python -m supervisor observe`."], [])
@@ -51,27 +52,51 @@ def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_2
     # Conta cio' che e' successo nelle 24 ore, non cio' che e' stato raccolto (il primo giro
     # recupera anche giorni precedenti).
     events_24h = [e for e in events_24h if e.occurred_at >= since]
-    sections = [_findings_section(open_findings, {f.id for f in new})]
+    sections = [_findings_section(open_findings, {f.id for f in new}, decisions or {})]
     for report in reports:
         if report.kind == "github":
             sections.append(_github_section(report, [e for e in events_24h if e.source == report.source]))
         elif report.kind == "promo":
             sections.append(_promo_section(report))
+    if budget is not None:
+        sections.append(_budget_section(budget))
     sections.append(Section("Completezza delle sorgenti", [
         f"{r.source}: {r.completeness}" + (f" — {'; '.join(r.errors)}" if r.errors else "") for r in reports
     ]))
     return Brief(title, intro, sections, new_findings=len(new), open_findings=len(open_findings))
 
 
-def _findings_section(findings: list[Finding], new_ids: set[str]) -> Section:
+def _findings_section(findings: list[Finding], new_ids: set[str], decisions: dict[str, dict]) -> Section:
     ordered = sorted(findings, key=lambda f: (SEVERITY_ORDER.get(f.severity, 9), f.created_at, f.id))
     lines = []
     for f in ordered:
         mark = "NUOVO " if f.id in new_ids else ""
         evidence = f" — {f.evidence[0]}" if f.evidence else ""
         lines.append(f"{mark}[{f.severity}] {f.subject}: {f.statement}{evidence}")
+        decision = decisions.get(f.id)
+        if decision and decision.get("state") == "proposed":
+            human = ", serve Michele" if decision.get("needs_human") else ""
+            lines.append(f"  proposta triage ({decision['priority']}, {decision['role']}{human}, "
+                         f"{decision['model']}): {decision['rationale_summary']} → {decision['proposed_action']}")
     return Section(f"Finding aperti ({len(findings)}, nuovi nelle ultime 24h: {len(new_ids)})",
                    lines or ["Nessun finding aperto."])
+
+
+def _budget_section(b: dict) -> Section:
+    def usd(micros: int) -> str:
+        return f"{micros / 1_000_000:.2f}"
+
+    lines = [
+        f"Mese {b['month']}: speso {usd(b['month_actual'])} + prenotato {usd(b['month_reserved'])} "
+        f"su {usd(b['month_hard'])} USD (attenzione a {usd(b['month_soft'])})",
+        f"Oggi: speso {usd(b['day_actual'])} + prenotato {usd(b['day_reserved'])} su {usd(b['day_hard'])} USD",
+    ]
+    if not b.get("approved"):
+        lines.append("Budget non approvato: nessuna chiamata AI a pagamento.")
+    if b.get("open_reservations"):
+        lines.append(f"Chiamate dall'esito incerto da riconciliare: {b['open_reservations']} "
+                     "(`python -m supervisor budget`)")
+    return Section("Budget AI", lines)
 
 
 def _workflow_line(name: str, latest: Optional[dict]) -> str:
