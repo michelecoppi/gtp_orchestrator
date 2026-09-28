@@ -39,6 +39,9 @@ checks = [
   "python -m pytest -q -x -p no:cacheprovider",
 ]
 check_timeout_seconds = 900
+# Esclusioni locali (.git/info/exclude del workspace, mai committate): il link simbolico a
+# /deps/node_modules non e' coperto dal pattern `node_modules/` del gioco.
+local_excludes = ["/node_modules"]
 python_image = "python:3.11-slim"
 # Node come nel Dockerfile del gioco (vuoto = senza Node).
 node_image = "node:22-slim"

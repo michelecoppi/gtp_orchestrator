@@ -1,4 +1,7 @@
-# GTP Supervisor
+# GTP Orchestrator
+
+Repository [michelecoppi/gtp_orchestrator](https://github.com/michelecoppi/gtp_orchestrator); il pacchetto Python si chiama
+`supervisor` (`python -m supervisor ...`).
 
 Supervisore di [Guess the Player from the Path](https://github.com/michelecoppi/guess_the_player_from_the_path) e
 [Promo Studio](https://github.com/michelecoppi/promo_studio). Osserva sviluppo e promozione, registra fatti

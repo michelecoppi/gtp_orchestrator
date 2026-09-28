@@ -7,13 +7,13 @@
    - `roles/datastore.user` sul progetto `gtp-supervisor`;
    - `roles/datastore.viewer` sul progetto del gioco (`guess-the-player-from-path-bot`), per leggere `promo_posts`.
      Nessun ruolo di scrittura sul gioco.
-3. **Workload Identity Federation**: un provider che accetti solo `repository == michelecoppi/gtp_supervisor`,
+3. **Workload Identity Federation**: un provider che accetti solo `repository == michelecoppi/gtp_orchestrator`,
    con binding `roles/iam.workloadIdentityUser` sul service account.
 4. **GitHub App** "gtp-supervisor" (privata), installata solo su `guess_the_player_from_the_path` e
    `promo_studio`, con permessi in sola lettura: *Actions*, *Contents*, *Issues*, *Pull requests*, *Metadata*.
    Da M3 servono anche *Contents* e *Pull requests* in scrittura, ma solo sul gioco: i workflow chiedono
    token ridotti per ogni job e la scrittura esiste solo nel job `open-pr` di `engineer.yml`.
-5. **Secret e variabili** del repository `gtp_supervisor`:
+5. **Secret e variabili** del repository `gtp_orchestrator`:
 
    | Tipo | Nome | Valore |
    |---|---|---|

@@ -48,6 +48,19 @@ def git(workspace: Path, *args: str, check: bool = True) -> str:
     return result.stdout
 
 
+def add_local_excludes(workspace: Path, patterns: tuple[str, ...]) -> None:
+    """Esclusioni solo locali (.git/info/exclude): file prodotti dai controlli che non devono entrare nella patch."""
+    if not patterns:
+        return
+    exclude = Path(git(workspace, "rev-parse", "--git-path", "info/exclude").strip())
+    exclude = exclude if exclude.is_absolute() else workspace / exclude
+    current = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
+    missing = [p for p in patterns if p not in current]
+    if missing:
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text("\n".join(current + missing) + "\n", encoding="utf-8")
+
+
 def reset_workspace(workspace: Path) -> None:
     git(workspace, "reset", "-q", "--hard")
     git(workspace, "clean", "-fdq")

@@ -28,7 +28,8 @@ concurrency:
 
 jobs:
   observe:
-    if: github.repository == 'michelecoppi/gtp_supervisor'
+    # Nulla gira finche' SUP_ENABLED non e' true: niente run falliti prima del setup (GCP, GitHub App, secret).
+    if: github.repository == 'michelecoppi/gtp_orchestrator' && vars.SUP_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

@@ -25,6 +25,7 @@ from supervisor.engineering.config import RepoEngineering
 from supervisor.engineering.patch import (
     Edit,
     PatchRejected,
+    add_local_excludes,
     apply_edits,
     check_patch,
     diff,
@@ -184,6 +185,7 @@ def run_work(task: dict, workspace: Path, repo: RepoEngineering, gateway: LLMGat
     if head != task["base_sha"]:
         return WorkResult("blocked", f"workspace a {head[:7]}, atteso {task['base_sha'][:7]}")
     task_id, issue = task["id"], task["issue_number"]
+    add_local_excludes(workspace, repo.local_excludes)
     instructions, files = repository_context(workspace, repo)
     issue_text = (f"Issue #{issue}: {task['issue_title']}\n\n{task.get('issue_body', '')}")
     common = (f"<dati>\nISTRUZIONI DEL REPOSITORY (AGENTS.md):\n{fenced(instructions, AGENTS_LIMIT)}\n\n"

@@ -79,5 +79,6 @@ timeout: se branch o PR esistono già, li riprende.
 - Il worker vede al massimo 8 file (60 KB ciascuno): è pensato per fix piccoli, non per evolutive.
 - I controlli nel container non sostituiscono la CI completa: mancano l'emulatore Firestore, gli audit e la
   coverage.
-- Il contratto dell'immagine Docker è stato verificato localmente solo con gli stessi comandi fuori da
-  Docker. Il primo run in Actions va seguito.
+- Immagine Docker verificata in locale il 28/09/2026 sul gioco a `7bc43cf`: la build richiede circa 1m45 e i
+  controlli nel container (senza rete, `--cap-drop ALL`) circa 78 s, con ruff, mypy e build ok e 2266 test
+  passati. Il link `node_modules` resta fuori dalla patch grazie a `local_excludes`.

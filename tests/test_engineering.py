@@ -154,6 +154,18 @@ def test_applicazione_esatta_e_controlli(tmp_path):
         check_patch("diff --git a/a.py b/a.py\nold mode 100644\nnew mode 100755\n", cfg)
 
 
+def test_esclusioni_locali_tengono_fuori_il_link_node_modules(tmp_path):
+    from supervisor.engineering.patch import add_local_excludes
+
+    ws, _ = make_repo(tmp_path / "repo")
+    (ws / "node_modules").write_text("finto link", encoding="utf-8")
+    add_local_excludes(ws, ("/node_modules",))
+    add_local_excludes(ws, ("/node_modules",))  # idempotente
+    assert run(ws, "git", "status", "--porcelain") == ""
+    assert (ws / ".git" / "info" / "exclude").read_text(encoding="utf-8").count("/node_modules") == 1
+    assert "node_modules" not in diff(ws)
+
+
 def test_messaggio_di_commit_convenzionale():
     assert normalize_commit("fix(score): scala i suggerimenti", 42, "t") == "fix(score): scala i suggerimenti (Refs #42)"
     assert normalize_commit("fix: x (Closes #42)", 42, "t").endswith("(Refs #42)")  # Closes lo decide Michele

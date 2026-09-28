@@ -24,6 +24,7 @@ class RepoEngineering:
     checks: tuple[str, ...] = ()
     check_timeout_seconds: int = 900
     python_image: str = "python:3.11-slim"
+    local_excludes: tuple[str, ...] = ()
     node_image: str = ""
 
     def path_problem(self, path: str) -> str:

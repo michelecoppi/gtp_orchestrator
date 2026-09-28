@@ -27,7 +27,7 @@ env:
 
 jobs:
   claim:
-    if: github.repository == 'michelecoppi/gtp_supervisor' && vars.SUP_ENGINEER_ENABLED == 'true'
+    if: github.repository == 'michelecoppi/gtp_orchestrator' && vars.SUP_ENGINEER_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
