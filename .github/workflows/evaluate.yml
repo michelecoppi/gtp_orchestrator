@@ -34,7 +34,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: supervisor-evaluate
+  group: supervisor-evaluate-${{ inputs.suite }}
   cancel-in-progress: false
 
 jobs:
