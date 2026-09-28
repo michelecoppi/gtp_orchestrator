@@ -16,11 +16,12 @@ max_output_tokens = 16
 # la review resta umana (la PR lo dichiara).
 [tasks.engineer_plan]
 model = "gpt-6-sol@openrouter"
-max_output_tokens = 1500
+max_output_tokens = 3000
 
 [tasks.engineer_patch]
 model = "gpt-6-sol@openrouter"
-max_output_tokens = 8000
+# Limitato comunque al massimo del modello nel catalogo.
+max_output_tokens = 16000
 
 [tasks.engineer_review]
 model = "claude-sonnet-5@openrouter"

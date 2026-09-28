@@ -92,8 +92,8 @@ class InvalidModelOutput(ValueError):
 class Models:
     author: str
     reviewer: Optional[str]
-    plan_tokens: int = 1500
-    patch_tokens: int = 8000
+    plan_tokens: int = 3000
+    patch_tokens: int = 16000
     review_tokens: int = 1500
 
 
@@ -126,7 +126,12 @@ def fenced(text: str, limit: int) -> str:
     return clipped.replace("<dati>", "‹dati›").replace("</dati>", "‹/dati›")
 
 
+HARD_ARRAYS = ("edits",)
+
+
 def parse_object(text: str, schema: dict) -> dict:
+    """JSON conforme allo schema. Tipi, campi ed elenchi chiusi sono rigidi; i testi troppo lunghi si troncano
+    (un modello prolisso non deve perdere una patch valida) e cosi' gli elenchi descrittivi, ma non `edits`."""
     raw = text.strip()
     if raw.startswith("```"):
         raw = raw.strip("`").removeprefix("json").strip()
@@ -143,9 +148,11 @@ def parse_object(text: str, schema: dict) -> dict:
         if not isinstance(value, expected):
             raise InvalidModelOutput(f"{name}: tipo non valido")
         if isinstance(value, str) and len(value) > spec.get("maxLength", 10**9):
-            raise InvalidModelOutput(f"{name}: troppo lungo")
+            data[name] = value[: spec["maxLength"] - 1] + "…"
         if isinstance(value, list) and len(value) > spec.get("maxItems", 10**9):
-            raise InvalidModelOutput(f"{name}: troppi elementi")
+            if name in HARD_ARRAYS:
+                raise InvalidModelOutput(f"{name}: troppi elementi")
+            data[name] = value[: spec["maxItems"]]
         if "enum" in spec and value not in spec["enum"]:
             raise InvalidModelOutput(f"{name}: valore fuori elenco")
     return data
@@ -192,14 +199,24 @@ def run_work(task: dict, workspace: Path, repo: RepoEngineering, gateway: LLMGat
               f"ISSUE:\n{fenced(issue_text, ISSUE_LIMIT)}\n</dati>\n")
 
     def ask(task_name: str, model: str, system: str, prompt: str, tokens: int, schema: dict) -> dict:
+        entry = gateway.catalog.get(model)
+        tokens = min(tokens, entry.max_output_tokens) if entry else tokens
         result = gateway.call(task_id=task_id, task=task_name, model_key=model, system=system, prompt=prompt,
                               max_output_tokens=tokens, now=now, json_schema=schema)
         return parse_object(result.response.text, schema)
 
+    def ask_twice(task_name: str, model: str, system: str, prompt: str, tokens: int, schema: dict) -> dict:
+        """Un solo nuovo tentativo se il formato non e' valido (per esempio risposta troncata)."""
+        try:
+            return ask(task_name, model, system, prompt, tokens, schema)
+        except InvalidModelOutput as exc:
+            return ask(task_name, model, system, prompt + f"\nLa risposta precedente non era valida ({exc}): "
+                       "rispondi con un JSON completo e piu' conciso.", tokens, schema)
+
     out = WorkResult("failed")
     try:
         file_list = fenced("\n".join(files), FILE_LIST_LIMIT)
-        out.plan = ask("engineer_plan", models.author, RULES + " Fase: pianificazione.",
+        out.plan = ask_twice("engineer_plan", models.author, RULES + " Fase: pianificazione.",
                        common + f"<dati>\nFILE DEL REPOSITORY:\n{file_list}\n</dati>\n"
                        f"Scegli al massimo {repo.max_context_files} file da leggere, descrivi l'approccio e i "
                        "criteri di accettazione verificabili.", models.plan_tokens, PLAN_SCHEMA)
@@ -208,16 +225,23 @@ def run_work(task: dict, workspace: Path, repo: RepoEngineering, gateway: LLMGat
         feedback = ""
         for attempt in range(1, max_attempts + 1):
             reset_workspace(workspace)
-            proposal = ask("engineer_patch", models.author, RULES + " Fase: modifica.",
-                           common + f"<dati>\nPIANO:\n{fenced(out.plan['approach'], 800)}\n\nFILE:\n"
-                           f"{fenced(context, repo.max_context_files * repo.max_file_bytes)}\n{feedback}</dati>\n"
-                           "Proponi sostituzioni esatte: `search` deve comparire una sola volta nel file (includi "
-                           "abbastanza contesto), `search` vuoto crea un file nuovo. Aggiungi o aggiorna i test "
-                           f"pertinenti. Al massimo {repo.max_files_changed} file e {repo.max_lines_changed} righe. "
-                           "`completes_issue` e' true solo se ogni criterio della issue e' soddisfatto.",
-                           models.patch_tokens, PATCH_SCHEMA)
             record: dict[str, Any] = {"attempt": attempt}
             out.attempts.append(record)
+            try:
+                proposal = ask("engineer_patch", models.author, RULES + " Fase: modifica.",
+                           common + f"<dati>\nPIANO:\n{fenced(out.plan['approach'], 800)}\n\nFILE:\n"
+                               f"{fenced(context, repo.max_context_files * repo.max_file_bytes)}\n{feedback}</dati>\n"
+                               "Proponi sostituzioni esatte: `search` deve comparire una sola volta nel file (includi "
+                               "abbastanza contesto, copiato carattere per carattere), `search` vuoto crea un file "
+                               "nuovo. Aggiungi o aggiorna i test pertinenti. Al massimo "
+                               f"{repo.max_files_changed} file e {repo.max_lines_changed} righe. Testi brevi. "
+                               "`completes_issue` e' true solo se ogni criterio della issue e' soddisfatto.",
+                               models.patch_tokens, PATCH_SCHEMA)
+            except InvalidModelOutput as exc:
+                record["rejected"] = f"output non valido: {exc}"
+                feedback = (f"\nLA RISPOSTA PRECEDENTE NON ERA UN JSON VALIDO ({exc}): usa meno contesto nelle "
+                            "sostituzioni e testi piu' brevi.\n")
+                continue
             try:
                 edits = [Edit(e["path"], e["search"], e["replace"]) for e in proposal["edits"]]
                 apply_edits(workspace, edits, repo)
@@ -240,11 +264,14 @@ def run_work(task: dict, workspace: Path, repo: RepoEngineering, gateway: LLMGat
                 out.commit_message = normalize_commit(proposal["commit_message"], issue, task["issue_title"])
                 break
             failed: CheckResult = next(c for c in checks if not c.ok)
+            record["failed_check"] = failed.command
             feedback = (f"\nI CONTROLLI SONO FALLITI AL TENTATIVO {attempt}. Comando: {failed.command}\n"
                         f"Uscita (coda):\n{fenced(failed.output_tail, 4000)}\n"
                         f"Modifiche proposte allora: {fenced(json.dumps(proposal['edits'])[:6000], 6000)}\n")
         if not out.patch:
-            out.error = f"nessuna patch valida dopo {max_attempts} tentativi"
+            reasons = "; ".join(f"t{r['attempt']}: " + (r.get("rejected") or f"controllo fallito `{r.get('failed_check')}`")
+                                for r in out.attempts)
+            out.error = f"nessuna patch valida dopo {max_attempts} tentativi ({reasons})"[:600]
             return out
         out.review = _review(models, ask, common, out)
         if out.review.get("verdict") == "block":
@@ -258,7 +285,7 @@ def run_work(task: dict, workspace: Path, repo: RepoEngineering, gateway: LLMGat
         suffix = " (esito incerto: riconciliare il budget)" if exc.needs_reconcile else ""
         out.error = f"chiamata AI fallita: {exc}{suffix}"
     except InvalidModelOutput as exc:
-        out.error = f"output del modello non valido: {exc}"
+        out.error = f"output del modello non valido in pianificazione: {exc}"
     return out
 
 

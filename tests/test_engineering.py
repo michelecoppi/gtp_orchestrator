@@ -371,3 +371,24 @@ def test_local_runner_ambiente_ripulito(tmp_path, monkeypatch):
                                tmp_path / "r", 30)
     assert result.ok and "None" in result.output_tail
     assert run(tmp_path / "r", "git", "status", "--porcelain") == ""
+
+
+def test_testi_lunghi_si_troncano_e_il_formato_si_ritenta(tmp_path):
+    long_plan = json.dumps({**json.loads(PLAN), "approach": "x" * 5000})
+    ws, base, _, llm, gw = worker_setup(tmp_path, {
+        "engineer_plan": ['{"files_to_read": ["score.py"], "appro', long_plan],  # prima risposta troncata
+        "engineer_patch": ['{"edits": [{"path": "score.py", "sea', GOOD_PATCH],  # idem al primo tentativo
+        "engineer_review": APPROVE,
+    })
+    result = run_work(task_doc(base), ws, repo_config(), gw, LocalRunner(), MODELS, NOW)
+    assert result.status == "patch_ready", result.error
+    assert len(result.plan["approach"]) == 800 and result.plan["approach"].endswith("…")
+    assert "output non valido" in result.attempts[0]["rejected"]
+    assert "JSON non valido" in llm.requests[1].prompt  # il secondo piano riceve l'errore
+
+
+def test_errore_finale_spiega_i_tentativi(tmp_path):
+    bad = json.dumps({**json.loads(GOOD_PATCH), "edits": [{"path": "score.py", "search": "assente", "replace": "x"}]})
+    ws, base, _, _, gw = worker_setup(tmp_path, {"engineer_plan": PLAN, "engineer_patch": [bad, bad]})
+    result = run_work(task_doc(base), ws, repo_config(), gw, LocalRunner(), MODELS, NOW)
+    assert result.status == "failed" and "t1: score.py: il testo da sostituire compare 0 volte" in result.error
