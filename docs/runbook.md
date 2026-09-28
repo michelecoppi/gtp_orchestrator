@@ -137,8 +137,8 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
 - **Dati di qualità**: se compare il finding `analytics_data_quality` (per esempio `bot_started` assente), si
   sistema la raccolta prima di leggere il funnel.
 - **Proposte per gli altri repository**: `docs/proposals/game-campaign-id.md` e
-  `docs/proposals/promo-brief-intake.md`. Si aprono come issue nei rispettivi repository solo dopo averle
-  approvate.
+  `docs/proposals/promo-brief-intake.md`, aperte il 29/09/2026 come [gioco #218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218) e
+  [promo_studio #1](https://github.com/michelecoppi/promo_studio/issues/1). Nuove proposte si aprono solo dopo averle approvate.
 
 ## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.

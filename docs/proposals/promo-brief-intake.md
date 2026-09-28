@@ -1,6 +1,6 @@
 # Proposta di issue — Promo Studio: ricezione dei brief del supervisore
 
-**Repository:** `michelecoppi/promo_studio` · **Tipo:** feature · **Stato:** bozza, non aperta
+**Repository:** `michelecoppi/promo_studio` · **Tipo:** feature · **Stato:** aperta il 29/09/2026 come [promo_studio#1](https://github.com/michelecoppi/promo_studio/issues/1), dipende dal gioco [#218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218)
 
 ---
 
