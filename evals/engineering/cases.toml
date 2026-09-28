@@ -1,0 +1,70 @@
+# Casi storici del gioco per la evaluation engineering (specifica, sez. 14).
+# Solo PR unite con squash, collegate a una issue, con test Python. `eval prepare` calcola base, test
+# nascosti, FAIL_TO_PASS e PASS_TO_PASS in Docker e scrive cases.lock.json (versionato).
+# I casi senza FAIL_TO_PASS (per esempio test che richiedono l'emulatore Firestore) vengono esclusi.
+
+[[cases]]
+id = "channel-promo-telegram"
+pr = 217
+issue = 216
+fix_sha = "7bc43cf5a241"
+
+[[cases]]
+id = "experiment-denominators"
+pr = 213
+issue = 211
+fix_sha = "94f9dd1d7651"
+
+[[cases]]
+id = "miniapp-payload-validation"
+pr = 212
+issue = 210
+fix_sha = "e1fc59c15d86"
+
+[[cases]]
+id = "webapp-no-sourcemaps"
+pr = 196
+issue = 181
+fix_sha = "4a90c584af28"
+
+[[cases]]
+id = "webapp-font-woff2"
+pr = 195
+issue = 186
+fix_sha = "5ff0a8070ab4"
+
+[[cases]]
+id = "experiment-report-variants"
+pr = 176
+issue = 171
+fix_sha = "9a9ec17f4f6a"
+
+[[cases]]
+id = "experiment-cache-early-stop"
+pr = 173
+issue = 170
+fix_sha = "58e5833377a7"
+
+[[cases]]
+id = "acquisition-channel"
+pr = 140
+issue = 137
+fix_sha = "958ed941f45f"
+
+[[cases]]
+id = "admin-daily-lock"
+pr = 100
+issue = 34
+fix_sha = "5cd7e8a8260a"
+
+[[cases]]
+id = "admin-overview-metrics"
+pr = 99
+issue = 33
+fix_sha = "75ff6c4241cc"
+
+[[cases]]
+id = "admin-review-wording"
+pr = 92
+issue = 86
+fix_sha = "44cbe63a83ce"

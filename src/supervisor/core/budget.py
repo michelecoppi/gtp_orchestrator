@@ -64,6 +64,9 @@ class TaskLimits:
 class BudgetConfig:
     limits: BudgetLimits
     tasks: TaskLimits
+    # Budget dedicato alle evaluation dei modelli (specifica, sez. 12 e 14): contabilita' separata, cosi' un
+    # confronto fra provider non consuma il tetto operativo e il tetto operativo non ferma il confronto.
+    evaluation: Optional[BudgetLimits] = None
 
 
 def load_budget(config_dir: Path | str) -> BudgetConfig:
@@ -84,11 +87,21 @@ def load_budget(config_dir: Path | str) -> BudgetConfig:
             approved_on=str(raw.get("approved_on", "")),
         )
         tasks = TaskLimits(**{k: int(v) for k, v in (raw.get("limits") or {}).items() if k in TaskLimits.__dataclass_fields__})
+        evaluation = None
+        if "evaluation" in raw:
+            ev = raw["evaluation"]
+            evaluation = BudgetLimits(
+                daily_soft=usd_to_micros(ev["daily_hard_limit"]), daily_hard=usd_to_micros(ev["daily_hard_limit"]),
+                monthly_soft=usd_to_micros(ev["monthly_hard_limit"]),
+                monthly_hard=usd_to_micros(ev["monthly_hard_limit"]),
+                approved=bool(ev.get("approved", False)), approved_by=ev.get("approved_by", ""),
+                approved_on=str(ev.get("approved_on", "")),
+            )
     except (KeyError, TypeError, ValueError) as exc:
         raise ConfigError(f"budget.toml non valido: {exc}") from exc
     if not (0 < limits.daily_soft <= limits.daily_hard <= limits.monthly_hard and limits.monthly_soft <= limits.monthly_hard):
         raise ConfigError("budget.toml: limiti incoerenti (soft <= hard, giornaliero <= mensile)")
-    return BudgetConfig(limits, tasks)
+    return BudgetConfig(limits, tasks, evaluation)
 
 
 def day_key(now: datetime) -> str:
@@ -119,16 +132,20 @@ class Reservation:
 
 
 class BudgetLedger:
-    def __init__(self, store: StateStore, limits: BudgetLimits) -> None:
+    def __init__(self, store: StateStore, limits: BudgetLimits, namespace: str = "") -> None:
         self.store = store
         self.limits = limits
+        self.namespace = namespace
+
+    def _budget_id(self, month: str) -> str:
+        return f"{self.namespace}-{month}" if self.namespace else month
 
     # --- controllo senza effetti (dry-run) -------------------------------------------------
     def check(self, amount: int, now: datetime) -> Optional[str]:
         """Motivo del blocco, o None se una prenotazione di `amount` passerebbe adesso."""
         if not self.limits.approved:
             return "budget non approvato (config/budget.toml: approved = false)"
-        month = self.store.get_doc(BUDGET, month_key(now)) or _empty_month(month_key(now))
+        month = self.store.get_doc(BUDGET, self._budget_id(month_key(now))) or _empty_month(month_key(now))
         return _block_reason(month, day_key(now), amount, self.limits)
 
     # --- prenotazione ----------------------------------------------------------------------
@@ -139,15 +156,17 @@ class BudgetLedger:
         if amount <= 0:
             raise BudgetExceeded("importo stimato non valido")
         month, day = month_key(now), day_key(now)
-        refs = [(BUDGET, month), (USAGE, call_id)]
+        budget_id = self._budget_id(month)
+        refs = [(BUDGET, budget_id), (USAGE, call_id)]
         limits = self.limits
+        namespace = self.namespace
 
         def _reserve(docs):
             usage = docs[(USAGE, call_id)]
             if usage is not None:  # stessa chiamata gia' prenotata: nessuna doppia prenotazione
                 return {}, Reservation(call_id, usage["reserved_micros"], usage["day"], usage["month"],
                                        existing=True, state=usage["state"])
-            month_doc = docs[(BUDGET, month)] or _empty_month(month)
+            month_doc = docs[(BUDGET, budget_id)] or _empty_month(month)
             reason = _block_reason(month_doc, day, amount, limits)
             if reason:
                 raise BudgetExceeded(reason)
@@ -156,9 +175,11 @@ class BudgetLedger:
                 "call_id": call_id, "task_id": task_id, "task": task, "provider": provider, "model": model,
                 "pricing_version": pricing_version, "reserved_micros": amount, "actual_micros": None,
                 "state": "reserved", "day": day, "month": month, "created_at": iso(now),
+                "namespace": namespace, "budget_doc": budget_id,
             }
             warning = _soft_warning(month_doc, day, limits)
-            return {(BUDGET, month): month_doc, (USAGE, call_id): usage}, Reservation(call_id, amount, day, month, warning)
+            return {(BUDGET, budget_id): month_doc, (USAGE, call_id): usage}, Reservation(call_id, amount, day, month,
+                                                                                         warning)
 
         return self.store.transact(refs, _reserve)
 
@@ -174,7 +195,8 @@ class BudgetLedger:
         usage_doc = self.store.get_doc(USAGE, call_id)
         if usage_doc is None:
             raise KeyError(f"chiamata sconosciuta: {call_id}")
-        refs = [(BUDGET, usage_doc["month"]), (USAGE, call_id)]
+        budget_id = usage_doc.get("budget_doc") or usage_doc["month"]
+        refs = [(BUDGET, budget_id), (USAGE, call_id)]
 
         def _apply(docs):
             usage = docs[(USAGE, call_id)]
@@ -183,11 +205,11 @@ class BudgetLedger:
             if usage["state"] != "reserved":  # gia' chiusa: idempotente
                 return {}, usage
             reserved = usage["reserved_micros"]
-            month_doc = docs[(BUDGET, usage["month"])] or _empty_month(usage["month"])
+            month_doc = docs[(BUDGET, budget_id)] or _empty_month(usage["month"])
             month_doc = _add(month_doc, usage["day"], reserved=-reserved, actual=actual)
             usage = {**usage, **extra, "state": state, "actual_micros": actual, "closed_at": iso(now),
                      "overrun": actual > reserved}
-            return {(BUDGET, usage["month"]): month_doc, (USAGE, call_id): usage}, usage
+            return {(BUDGET, budget_id): month_doc, (USAGE, call_id): usage}, usage
 
         return self.store.transact(refs, _apply)
 
@@ -196,10 +218,12 @@ class BudgetLedger:
         return sorted(self.store.query_docs(USAGE, "task_id", task_id), key=lambda d: d["created_at"])
 
     def open_reservations(self) -> list[dict]:
-        return sorted(self.store.query_docs(USAGE, "state", "reserved"), key=lambda d: d["created_at"])
+        docs = [d for d in self.store.query_docs(USAGE, "state", "reserved")
+                if (d.get("namespace") or "") == self.namespace]
+        return sorted(docs, key=lambda d: d["created_at"])
 
     def summary(self, now: datetime) -> dict[str, Any]:
-        month = self.store.get_doc(BUDGET, month_key(now)) or _empty_month(month_key(now))
+        month = self.store.get_doc(BUDGET, self._budget_id(month_key(now))) or _empty_month(month_key(now))
         day = _day(month, day_key(now))
         return {
             "approved": self.limits.approved,

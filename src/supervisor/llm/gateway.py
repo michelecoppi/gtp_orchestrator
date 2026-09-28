@@ -76,13 +76,15 @@ class CallResult:
 
 class LLMGateway:
     def __init__(self, *, catalog: Catalog, ledger: BudgetLedger, policy: Policy, client: Optional[LLMClient],
-                 ai_enabled: bool, task_limits: TaskLimits) -> None:
+                 ai_enabled: bool, task_limits: TaskLimits, allow_unverified: bool = False) -> None:
         self.catalog = catalog
         self.ledger = ledger
         self.policy = policy
         self.client = client
         self.ai_enabled = ai_enabled
         self.task_limits = task_limits
+        # Solo per le evaluation esplicite: l'accesso a un modello si verifica proprio cosi'.
+        self.allow_unverified = allow_unverified
 
     def preflight(self, model_key: str, system: str, prompt: str, max_output_tokens: int, now: datetime,
                   allow_unverified: bool = False) -> Preflight:
@@ -103,7 +105,7 @@ class LLMGateway:
             reasons.append("SUP_AI_ENABLED=false")
         if not model.enabled:
             reasons.append(f"{model_key} disabilitato nel catalogo")
-        if not model.access_verified and not allow_unverified:
+        if not model.access_verified and not (allow_unverified or self.allow_unverified):
             reasons.append(f"accesso a {model_key} non verificato (supervisor llm smoke {model_key})")
         if input_tokens > model.max_input_tokens:
             item_reasons.append(f"input stimato {input_tokens} token oltre il limite {model.max_input_tokens}")

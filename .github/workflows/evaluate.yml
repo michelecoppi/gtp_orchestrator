@@ -1,0 +1,103 @@
+name: Evaluate
+
+# Confronto dei modelli (specifica, sez. 14). Solo manuale. Usa il budget dedicato [evaluation] di
+# config/budget.toml (contabilita' separata, namespace `eval`) e i modelli del catalogo, anche non ancora
+# verificati. Il report finisce nel riepilogo del run e nell'artifact; la scelta dei modelli resta una
+# modifica manuale di config/routing.toml.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "smoke = accesso ai modelli; triage; engineering (casi storici del gioco)"
+        type: choice
+        options: [smoke, triage, engineering]
+        default: smoke
+      models:
+        description: "Chiavi del catalogo separate da virgola"
+        type: string
+        default: "gpt-6-luna@openrouter,gemini-3.8-flash@openrouter,claude-sonnet-5@openrouter"
+      cases:
+        description: "Solo questi casi (id separati da virgola, vuoto = tutti)"
+        type: string
+        default: ""
+      repeat:
+        description: "Ripetizioni per caso"
+        type: string
+        default: "1"
+      dry_run:
+        description: "Solo stima dei costi"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: supervisor-evaluate
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    if: github.repository == 'michelecoppi/gtp_orchestrator'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      SUP_ENABLED: "true"
+      SUP_AI_ENABLED: "true"
+      SUP_STORE: firestore
+      SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
+      OPENROUTER_API_KEY: ${{ secrets.SUP_OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt -r requirements-ai.txt -e .
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.SUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
+          owner: michelecoppi
+          repositories: guess_the_player_from_the_path
+          permission-contents: read
+          permission-issues: read
+      - name: Repository del gioco (storia completa)
+        if: inputs.suite == 'engineering'
+        uses: actions/checkout@v4
+        with:
+          repository: michelecoppi/guess_the_player_from_the_path
+          token: ${{ steps.app.outputs.token }}
+          path: game
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      - name: Smoke test di accesso
+        if: inputs.suite == 'smoke'
+        run: |
+          status=0
+          for model in $(echo "${{ inputs.models }}" | tr ',' ' '); do
+            python -m supervisor llm smoke "$model" | tee -a out-smoke.txt || status=1
+          done
+          { echo '## Smoke test'; echo '```'; cat out-smoke.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+      - name: Evaluation
+        if: inputs.suite != 'smoke'
+        env:
+          SUP_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          args="--suite ${{ inputs.suite }} --models ${{ inputs.models }} --repeat ${{ inputs.repeat }} --repo-dir game --out out/eval"
+          [ -n "${{ inputs.cases }}" ] && args="$args --cases ${{ inputs.cases }}"
+          [ "${{ inputs.dry_run }}" = "true" ] && args="$args --dry-run"
+          python -m supervisor eval run $args
+          [ -f out/eval/report.md ] && cat out/eval/report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.suite != 'smoke'
+        with:
+          name: eval-${{ inputs.suite }}-${{ github.run_id }}
+          path: out/eval/
+          retention-days: 30
+          if-no-files-found: ignore

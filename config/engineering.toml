@@ -24,6 +24,8 @@ forbidden_paths = [
 ]
 # Installazione nel container di controllo (con rete, prima di applicare la patch). Le dipendenze restano
 # in /deps dentro l'immagine; il workspace montato su /work non le contiene.
+# File da cui dipende l'installazione (glob): l'immagine copia solo questi, cosi' la cache regge.
+dependency_files = ["requirements*.txt", "package*.json"]
 install = [
   "pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt",
   "npm ci --no-audit --no-fund",

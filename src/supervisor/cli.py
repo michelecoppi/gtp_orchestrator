@@ -392,8 +392,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="stato interno").set_defaults(fn=cmd_status)
 
     from supervisor.cli_engineer import register
+    from supervisor.cli_eval import register as register_eval
 
     register(sub)
+    register_eval(sub)
     sub.add_parser("doctor", help="verifica configurazione e credenziali").set_defaults(fn=cmd_doctor)
     return parser
 

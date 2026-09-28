@@ -18,3 +18,12 @@ max_fix_attempts = 2
 max_llm_calls_per_task = 8
 max_paid_tool_calls_per_task = 3
 astra_enabled = false
+
+# Budget dedicato al confronto dei modelli (specifica, sez. 14): contabilita' separata dal tetto operativo.
+# Serve un'approvazione esplicita di Michele per ogni ricarica del tetto.
+[evaluation]
+approved = false
+approved_by = ""
+approved_on = ""
+daily_hard_limit = 5.00
+monthly_hard_limit = 10.00
