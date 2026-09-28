@@ -107,6 +107,7 @@ jobs:
         if: steps.job.outputs.skip != 'true' && vars.SUP_AI_ENABLED == 'true'
         env:
           SUP_AI_ENABLED: "true"
+          OPENROUTER_API_KEY: ${{ secrets.SUP_OPENROUTER_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.SUP_OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.SUP_ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.SUP_GEMINI_API_KEY }}

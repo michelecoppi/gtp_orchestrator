@@ -18,7 +18,8 @@ DEFAULT_CONFIG_DIR = ROOT / "config"
 STORES = ("firestore", "sqlite", "memory")
 _SECRET_FIELDS = ("github_token", "github_write_token", "telegram_bot_token")
 # Chiavi dei provider AI: le legge LiteLLM dall'ambiente, qui si registrano solo presso lo scrubber.
-PROVIDER_KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "google": "GEMINI_API_KEY"}
+PROVIDER_KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "google": "GEMINI_API_KEY",
+                    "openrouter": "OPENROUTER_API_KEY"}
 
 
 class ConfigError(ValueError):

@@ -6,7 +6,7 @@
 # `access_verified = false`: l'accesso dall'account di Michele non e' ancora stato provato. Il gateway
 # rifiuta questi modelli; si verificano con `python -m supervisor llm smoke <key>` e poi si aggiorna qui
 # a mano (il router non cambia mai il catalogo da solo). Verificare anche gli id `litellm_model`.
-version = "2026-09-28"
+version = "2026-09-28b"
 verified_on = "2026-09-28"
 
 [[models]]
@@ -71,4 +71,71 @@ max_output_tokens = 8000
 prices = [
   { from = "2026-01-01", until = "2026-12-31", input = 0.75, output = 3.75 },
   { from = "2027-01-01", input = 1.50, output = 7.50 },
+]
+
+# --- Via OpenRouter (un solo account e una sola chiave: OPENROUTER_API_KEY) ----------------------------
+# Id e listino verificati il 2026-09-28 su https://openrouter.ai/api/v1/models: stessi prezzi dei provider.
+# I prezzi qui sotto includono la commissione del 5,5% sull'acquisto di credito (specifica, fonte S8), cosi'
+# il budget resta prudente. Ri-verificare la commissione sulla pagina prezzi di OpenRouter.
+[[models]]
+key = "gpt-6-luna@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/openai/gpt-6-luna"
+enabled = true
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 4000
+prices = [{ from = "2026-01-01", input = 0.1055, output = 0.5275 }]
+
+[[models]]
+key = "gpt-6-sol@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/openai/gpt-6-sol"
+enabled = true
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
+
+[[models]]
+key = "gpt-6-astra@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/openai/gpt-6-astra"
+enabled = false          # escalation eccezionale, disabilitata
+access_verified = false
+max_input_tokens = 100000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 10.55, output = 52.75 }]
+
+[[models]]
+key = "claude-sonnet-5@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/anthropic/claude-sonnet-5"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
+
+[[models]]
+key = "claude-opus-5-5@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/anthropic/claude-opus-5.5"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 16000
+prices = [{ from = "2026-01-01", input = 4.22, output = 21.10 }]
+
+[[models]]
+key = "gemini-3.8-flash@openrouter"
+provider = "openrouter"
+litellm_model = "openrouter/google/gemini-3.8-flash"
+enabled = true
+access_verified = false
+max_input_tokens = 150000
+max_output_tokens = 8000
+prices = [
+  { from = "2026-01-01", until = "2026-12-31", input = 0.7913, output = 3.9563 },
+  { from = "2027-01-01", input = 1.5825, output = 7.9125 },
 ]

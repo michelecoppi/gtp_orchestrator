@@ -1,9 +1,10 @@
 # Instradamento dei task verso i modelli (specifica, sez. 5.3).
+# Provider attivo: OpenRouter (una sola chiave). Le voci dirette del catalogo restano per un eventuale passaggio.
 # Nessun fallback automatico: un fallback paga a sua volta e richiede una decisione esplicita.
 # Se il modello non e' disponibile il task si rinvia e il report deterministico resta valido.
 
 [tasks.triage]
-model = "gpt-6-luna"
+model = "gpt-6-luna@openrouter"
 max_output_tokens = 600
 # Massimo di finding triati per giro: i controlli senza variazioni non chiamano mai un modello.
 max_items_per_run = 10
@@ -14,13 +15,13 @@ max_output_tokens = 16
 # Worker engineering (M3). Il reviewer e' di un altro provider rispetto all'autore; se non e' disponibile
 # la review resta umana (la PR lo dichiara).
 [tasks.engineer_plan]
-model = "gpt-6-sol"
+model = "gpt-6-sol@openrouter"
 max_output_tokens = 1500
 
 [tasks.engineer_patch]
-model = "gpt-6-sol"
+model = "gpt-6-sol@openrouter"
 max_output_tokens = 8000
 
 [tasks.engineer_review]
-model = "claude-sonnet-5"
+model = "claude-sonnet-5@openrouter"
 max_output_tokens = 1500

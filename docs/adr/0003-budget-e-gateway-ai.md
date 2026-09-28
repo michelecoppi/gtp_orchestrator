@@ -44,3 +44,14 @@ o TOML da solo non basta. Servono anche:
   supervisore e, dove possibile, vanno impostati limiti di spesa anche sul provider.
 - In CI le prenotazioni concorrenti sono provate su SQLite e sull'emulatore Firestore
   (`tests/test_budget.py`).
+
+## Aggiornamento 28/09/2026 — provider tramite OpenRouter
+Michele non ha account diretti con OpenAI e Anthropic. Il routing punta quindi ai modelli `...@openrouter`: un
+solo account, una sola chiave (`OPENROUTER_API_KEY`) e credito prepagato. Gli id e il listino sono stati
+verificati sull'API pubblica di OpenRouter e coincidono con i prezzi dei provider.
+
+I prezzi del catalogo includono la commissione del 5,5% sull'acquisto di credito, così la prenotazione resta
+prudente. Le voci dirette restano nel catalogo: per tornare alle API dei provider basta cambiare
+`config/routing.toml`, senza toccare il codice. Autore (OpenAI) e reviewer (Anthropic) restano modelli di
+provider diversi. Sulla chiave OpenRouter va impostato anche un limite di spesa: vale come secondo tetto,
+esterno al supervisore.

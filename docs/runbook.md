@@ -11,8 +11,8 @@
 | Secret `SUP_WIF_PROVIDER`, `SUP_WIF_SERVICE_ACCOUNT`; variabili progetti, chat admin, interruttori a `false` | fatto |
 | Etichetta `supervisor:fix` sul repository del gioco | fatto |
 | Budget AI approvato (1 USD/giorno, 15 USD/mese) | fatto |
-| GitHub App dedicata + `SUP_GITHUB_APP_ID` / `SUP_GITHUB_APP_KEY` | **Michele** |
-| Secret `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENAI_API_KEY`, `SUP_ANTHROPIC_API_KEY` | **Michele** |
+| GitHub App `gtp-orchestrator` (ID 5113175), variabile `SUP_GITHUB_APP_ID` | fatto |
+| Secret `SUP_GITHUB_APP_KEY`, `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENROUTER_API_KEY` | **Michele** |
 | `llm smoke` e `access_verified = true` nel catalogo, poi interruttori a `true` | dopo i secret |
 
 ## Setup iniziale (una volta, a cura di Michele)
@@ -42,7 +42,7 @@
    | secret | `SUP_WIF_SERVICE_ACCOUNT` | email del service account |
    | secret | `PROMO_APPROVAL_BOT_TOKEN` | token del bot approvazioni di Promo (ADR 0002) |
    | variable | `SUP_AI_ENABLED` | `false` finché non si completano i passi di "Attivare l'AI" |
-   | secret | `SUP_OPENAI_API_KEY` | chiave dedicata al supervisore (poi `SUP_ANTHROPIC_API_KEY`, `SUP_GEMINI_API_KEY`) |
+   | secret | `SUP_OPENROUTER_API_KEY` | chiave OpenRouter dedicata al supervisore, con limite di spesa sulla chiave (provider attivo); `SUP_OPENAI_API_KEY` / `SUP_ANTHROPIC_API_KEY` solo per un eventuale passaggio alle API dirette |
    | variable | `SUP_ENGINEER_ENABLED` | `false` finché non si completano i passi di "Attivare il worker engineering" |
 
 6. **Primo avvio:** *Actions → Observe → Run workflow* con `dry_run = true`. Controllare il log e l'artifact
@@ -83,7 +83,7 @@ Da fare in quest'ordine. Ogni passo è una decisione di Michele.
    con review.
 3. **Verificare l'accesso** al modello del triage, in locale o con un dispatch:
    ```bash
-   SUP_ENABLED=true SUP_AI_ENABLED=true OPENAI_API_KEY=... python -m supervisor llm smoke gpt-6-luna
+   SUP_ENABLED=true SUP_AI_ENABLED=true OPENROUTER_API_KEY=... python -m supervisor llm smoke gpt-6-luna@openrouter
    ```
    Controllare che il modello restituito e il costo siano quelli attesi, poi impostare `access_verified = true`
    per quel modello in `config/models.toml` (commit con review). Verificare anche l'id `litellm_model`.
@@ -98,7 +98,7 @@ verifica). Il router non cambia provider né prezzi da solo.
 ## Attivare il worker engineering (M3)
 
 Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` (autore) e, se possibile, a
-`claude-sonnet-5` (reviewer): `llm smoke gpt-6-sol` e `llm smoke claude-sonnet-5`.
+`claude-sonnet-5` (reviewer): `llm smoke gpt-6-sol@openrouter` e `llm smoke claude-sonnet-5@openrouter`.
 
 1. Concedere alla GitHub App *Contents: write* e *Pull requests: write*, e accettare i nuovi permessi
    sull'installazione.

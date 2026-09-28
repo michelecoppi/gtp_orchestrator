@@ -183,3 +183,21 @@ def test_adapter_litellm_legge_usage():
 
     r = LiteLLMClient(completion).complete(LLMRequest("openai/gpt-6-luna", "t", "s", "p", 5))
     assert (r.text, r.input_tokens, r.output_tokens, r.provider) == ("ok", 12, 3, "openai")
+
+
+def test_routing_su_openrouter_con_commissione_nel_prezzo():
+    catalog = load_catalog("config")
+    routing = load_routing("config")
+    day = parse_iso("2026-09-28T12:00:00Z").date()
+    for task in ("triage", "engineer_plan", "engineer_patch", "engineer_review"):
+        model = catalog.get(routing[task].model)
+        assert model.provider == "openrouter" and model.litellm_model.startswith("openrouter/"), task
+        assert not model.access_verified  # si verifica con `llm smoke`, mai d'ufficio
+    luna = catalog.get("gpt-6-luna@openrouter").price_on(day)
+    direct = catalog.get("gpt-6-luna").price_on(day)
+    assert luna.input_usd_per_mtok == pytest.approx(direct.input_usd_per_mtok * 1.055)
+    assert luna.output_usd_per_mtok == pytest.approx(direct.output_usd_per_mtok * 1.055)
+    # Autore e reviewer restano modelli di provider a monte diversi.
+    author = catalog.get(routing["engineer_patch"].model).litellm_model.split("/")[1]
+    reviewer = catalog.get(routing["engineer_review"].model).litellm_model.split("/")[1]
+    assert author != reviewer
