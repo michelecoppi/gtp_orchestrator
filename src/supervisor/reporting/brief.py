@@ -38,7 +38,7 @@ class Brief:
 
 def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_24h: list[Event],
                 now: datetime, decisions: Optional[dict[str, dict]] = None,
-                budget: Optional[dict] = None) -> Brief:
+                budget: Optional[dict] = None, tasks: Optional[list[dict]] = None) -> Brief:
     title = f"Brief GTP Supervisor — {rome_label(now)} (Europe/Rome)"
     if not snapshot:
         return Brief(title, ["Nessuno snapshot salvato: eseguire prima `python -m supervisor observe`."], [])
@@ -58,6 +58,8 @@ def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_2
             sections.append(_github_section(report, [e for e in events_24h if e.source == report.source]))
         elif report.kind == "promo":
             sections.append(_promo_section(report))
+    if tasks:
+        sections.append(_engineering_section(tasks, now))
     if budget is not None:
         sections.append(_budget_section(budget))
     sections.append(Section("Completezza delle sorgenti", [
@@ -80,6 +82,21 @@ def _findings_section(findings: list[Finding], new_ids: set[str], decisions: dic
                          f"{decision['model']}): {decision['rationale_summary']} → {decision['proposed_action']}")
     return Section(f"Finding aperti ({len(findings)}, nuovi nelle ultime 24h: {len(new_ids)})",
                    lines or ["Nessun finding aperto."])
+
+
+def _engineering_section(tasks: list[dict], now: datetime) -> Section:
+    week_ago = iso(now - timedelta(days=7))
+    shown = [t for t in tasks if t["state"] not in ("completed", "failed", "blocked") or t["updated_at"] >= week_ago]
+    labels = {"ci_pending": "CI in corso", "ci_green": "CI verde: tocca a te la review", "ci_failed": "CI fallita",
+              "work": "in lavorazione", "patch_ready": "patch pronta, PR in apertura"}
+    lines = []
+    for task in shown:
+        where = f" — PR #{task['pr_number']} {task.get('pr_url', '')}" if task.get("pr_number") else ""
+        phase = labels.get(task.get("phase", ""), task.get("phase", ""))
+        state = task["state"] if task["state"] in ("completed", "failed", "blocked", "queued") else phase
+        error = f" ({task['error']})" if task.get("error") and task["state"] in ("failed", "blocked") else ""
+        lines.append(f"{task['repo'].split('/')[-1]}#{task['issue_number']}: {state}{error}{where}")
+    return Section("Engineering (draft PR del supervisore)", lines or ["Nessun task negli ultimi 7 giorni."])
 
 
 def _budget_section(b: dict) -> Section:

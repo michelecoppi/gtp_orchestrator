@@ -70,6 +70,11 @@ jobs:
           private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
           owner: michelecoppi
           repositories: guess_the_player_from_the_path,promo_studio
+          # Observe legge soltanto: la scrittura esiste solo nel job open-pr di engineer.yml.
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+          permission-actions: read
 
       - uses: google-github-actions/auth@v2
         if: steps.job.outputs.skip != 'true'
@@ -87,6 +92,13 @@ jobs:
           else
             python -m supervisor observe --notify-findings
           fi
+
+      # Segue CI e stato delle draft PR del supervisore (M3): conta solo la CI sullo SHA di testa.
+      - name: Verifica draft PR
+        if: steps.job.outputs.skip != 'true' && steps.job.outputs.dry != 'true'
+        env:
+          SUP_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+        run: python -m supervisor engineer verify --notify
 
       # Triage AI solo sui finding nuovi, entro il budget approvato (config/budget.toml) e con modelli
       # verificati nel catalogo. Senza novita' non parte nessuna chiamata.

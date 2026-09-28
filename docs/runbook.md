@@ -11,7 +11,8 @@
    con binding `roles/iam.workloadIdentityUser` sul service account.
 4. **GitHub App** "gtp-supervisor" (privata), installata solo su `guess_the_player_from_the_path` e
    `promo_studio`, con permessi in sola lettura: *Actions*, *Contents*, *Issues*, *Pull requests*, *Metadata*.
-   Nessun permesso di scrittura in M1.
+   Da M3 servono anche *Contents* e *Pull requests* in scrittura, ma solo sul gioco: i workflow chiedono
+   token ridotti per ogni job e la scrittura esiste solo nel job `open-pr` di `engineer.yml`.
 5. **Secret e variabili** del repository `gtp_supervisor`:
 
    | Tipo | Nome | Valore |
@@ -27,6 +28,7 @@
    | secret | `PROMO_APPROVAL_BOT_TOKEN` | token del bot approvazioni di Promo (ADR 0002) |
    | variable | `SUP_AI_ENABLED` | `false` finché non si completano i passi di "Attivare l'AI" |
    | secret | `SUP_OPENAI_API_KEY` | chiave dedicata al supervisore (poi `SUP_ANTHROPIC_API_KEY`, `SUP_GEMINI_API_KEY`) |
+   | variable | `SUP_ENGINEER_ENABLED` | `false` finché non si completano i passi di "Attivare il worker engineering" |
 
 6. **Primo avvio:** *Actions → Observe → Run workflow* con `dry_run = true`. Controllare il log e l'artifact
    `brief-*`. Poi impostare `SUP_ENABLED=true`.
@@ -78,8 +80,37 @@ Da fare in quest'ordine. Ogni passo è una decisione di Michele.
 Prima di cambiare un prezzo o un modello: aggiornare `config/models.toml` (nuova `version`, fonte e data di
 verifica). Il router non cambia provider né prezzi da solo.
 
+## Attivare il worker engineering (M3)
+
+Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` (autore) e, se possibile, a
+`claude-sonnet-5` (reviewer): `llm smoke gpt-6-sol` e `llm smoke claude-sonnet-5`.
+
+1. Concedere alla GitHub App *Contents: write* e *Pull requests: write*, e accettare i nuovi permessi
+   sull'installazione.
+2. Creare nel repository del gioco l'etichetta `supervisor:fix`.
+3. Impostare la variabile `SUP_ENGINEER_ENABLED=true`. Il workflow Engineer gira ogni 2 ore di giorno, oppure a
+   mano da *Actions → Engineer*.
+4. Per affidare un fix: scrivere la issue con criteri di accettazione chiari e aggiungere l'etichetta. Il
+   supervisore:
+   - reclama la issue;
+   - prepara la patch e la verifica nel container;
+   - apre una **draft PR** `fix/<n>-supervisor-...` con `Refs #n`;
+   - avvisa su Telegram quando la CI sullo SHA di testa è verde.
+5. Review e merge restano tuoi. Se tutti i criteri sono soddisfatti, sostituisci `Refs` con `Closes`. Sposta a
+   mano l'elemento del Project #2: il supervisore non può farlo.
+
+| Situazione | Che cosa fare |
+|---|---|
+| Vuoi fermare un task | Togli l'etichetta: approvazione revocata, il task si blocca prima di scrivere. |
+| Hai modificato la issue dopo l'etichetta | L'approvazione non vale più. Togli e rimetti l'etichetta per un task nuovo. |
+| `engineer list` mostra `blocked` o `failed` | Il motivo è accanto: patch fuori dai limiti, controlli falliti dopo 2 tentativi, review bloccante, budget. L'artifact `engineer-<task>` del workflow contiene `result.json` e l'eventuale patch. |
+| Il repository resta "occupato" | Un solo task attivo per repository, finché la PR è aperta. Unisci o chiudi la PR per liberarlo. |
+| Emergenza | `SUP_ENGINEER_ENABLED=false` ferma il workflow. La policy `create_branch_or_draft_pr = "deny"` blocca anche l'executor. |
+
 ## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.
 - Firestore: poche centinaia di scritture al giorno, entro la quota gratuita (da verificare sul billing).
+- Engineering: circa 4 chiamate per task (piano, patch, eventuale secondo tentativo, review); con GPT-6 Sol la stima
+  pessimista è di pochi centesimi per task. Il tetto giornaliero di 1 USD ferma i task che non ci stanno.
 - AI: triage con GPT-6 Luna a circa 0,0004 USD per finding (stima pessimista con 600 token di output). Il tetto
   resta 15 USD al mese e 1 USD al giorno.

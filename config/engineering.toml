@@ -1,0 +1,44 @@
+# Worker engineering (M3): fix piccoli, draft PR, nessun merge. Vedi docs/adr/0004-engineering-worker.md.
+#
+# Approvazione: Michele aggiunge l'etichetta `approval_label` a una issue aperta del repository. L'etichetta
+# vale solo se l'evento `labeled` e' di uno degli `approvers` e se titolo e corpo della issue non cambiano
+# dopo l'approvazione. Rimuovere l'etichetta revoca l'approvazione.
+approvers = ["michelecoppi"]
+approval_label = "supervisor:fix"
+lease_minutes = 60
+
+[[repos]]
+repo = "michelecoppi/guess_the_player_from_the_path"
+base_branch = "main"
+branch_prefix = "fix"
+max_files_changed = 5
+max_lines_changed = 200
+max_context_files = 8
+max_file_bytes = 60000
+# Percorsi che il worker non puo' toccare: workflow, segreti, dipendenze, regole di sicurezza, istruzioni.
+forbidden_paths = [
+  ".github/*", ".github/**", ".env*", "*.env", "*.pem", "*.key", "firebase-key.json", "*-key.json",
+  "firestore.rules", "firestore.indexes.json", "Dockerfile", "requirements*.txt", "package.json",
+  "package-lock.json", "pyproject.toml", "security-exceptions.json", ".secrets.baseline", "AGENTS.md",
+  "LICENSE", "NOTICE", "backup/*", "data/*",
+]
+# Installazione nel container di controllo (con rete, prima di applicare la patch). Le dipendenze restano
+# in /deps dentro l'immagine; il workspace montato su /work non le contiene.
+install = [
+  "pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt",
+  "npm ci --no-audit --no-fund",
+]
+# Controlli rapidi nel container (senza rete ne' segreti) dopo la patch, nell'ordine della CI del gioco:
+# i test Python leggono il bundle del frontend, quindi prima si ricostruisce dai sorgenti patchati
+# (node_modules e webapp/dist sono ignorati da git e non entrano nella patch). Verificato sul repository
+# allo SHA 71a04ca: 2231 test passano. I gate completi restano quelli della CI sullo SHA finale della PR.
+checks = [
+  "ruff check .",
+  "mypy services/ domains/",
+  "ln -sfn /deps/node_modules node_modules && npm run build --silent",
+  "python -m pytest -q -x -p no:cacheprovider",
+]
+check_timeout_seconds = 900
+python_image = "python:3.11-slim"
+# Node come nel Dockerfile del gioco (vuoto = senza Node).
+node_image = "node:22-slim"

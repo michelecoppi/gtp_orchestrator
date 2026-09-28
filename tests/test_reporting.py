@@ -99,3 +99,16 @@ def test_non_configurato():
 def test_alert_finding():
     text = render_findings_alert([Finding("ci_failed", GAME, "k", "CI rotta", "alta", ["https://x"])])
     assert text.startswith("GTP Supervisor: 1 nuovi finding") and "https://x" in text
+
+
+def test_sezione_engineering():
+    tasks = [
+        {"repo": GAME, "issue_number": 42, "state": "awaiting_approval", "phase": "ci_green", "pr_number": 300,
+         "pr_url": "https://pr/300", "updated_at": NOW},
+        {"repo": GAME, "issue_number": 7, "state": "blocked", "phase": "done", "error": "approvazione revocata",
+         "updated_at": NOW},
+        {"repo": GAME, "issue_number": 1, "state": "completed", "phase": "done", "updated_at": "2026-09-01T00:00:00Z"},
+    ]
+    text = render_markdown(build_brief(snapshot(), [], [], now, tasks=tasks))
+    assert "guess_the_player_from_the_path#42: CI verde: tocca a te la review — PR #300" in text
+    assert "#7: blocked (approvazione revocata)" in text and "#1:" not in text

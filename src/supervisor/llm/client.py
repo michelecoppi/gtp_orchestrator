@@ -50,7 +50,7 @@ class LLMClient(Protocol):
 class FakeLLM:
     """Risposte preregistrate per task: per test ed evaluation, costo zero.
 
-    `answers[task]` puo' essere un testo o un'eccezione da sollevare."""
+    `answers[task]` puo' essere un testo, un'eccezione da sollevare o una lista (una risposta per chiamata)."""
 
     def __init__(self, answers: Optional[dict] = None, input_tokens: int = 1000, output_tokens: int = 100) -> None:
         self.answers = answers or {}
@@ -61,6 +61,8 @@ class FakeLLM:
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         answer = self.answers.get(request.task, "")
+        if isinstance(answer, list):
+            answer = answer.pop(0) if answer else ""
         if isinstance(answer, BaseException):
             raise answer
         return LLMResponse(str(answer), "fake", request.model, self.input_tokens, self.output_tokens)

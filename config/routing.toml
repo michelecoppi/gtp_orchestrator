@@ -10,3 +10,17 @@ max_items_per_run = 10
 
 [tasks.smoke]
 max_output_tokens = 16
+
+# Worker engineering (M3). Il reviewer e' di un altro provider rispetto all'autore; se non e' disponibile
+# la review resta umana (la PR lo dichiara).
+[tasks.engineer_plan]
+model = "gpt-6-sol"
+max_output_tokens = 1500
+
+[tasks.engineer_patch]
+model = "gpt-6-sol"
+max_output_tokens = 8000
+
+[tasks.engineer_review]
+model = "claude-sonnet-5"
+max_output_tokens = 1500

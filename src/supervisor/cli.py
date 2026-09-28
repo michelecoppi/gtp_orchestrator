@@ -33,6 +33,7 @@ from supervisor.core.config import PROVIDER_KEY_ENV, ConfigError, Settings, Sour
 from supervisor.core.pipeline import LockBusy, observe
 from supervisor.core.policy import load_policy
 from supervisor.core.scrub import scrub
+from supervisor.engineering.tasks import TaskQueue
 from supervisor.llm.catalog import load_catalog, load_routing
 from supervisor.llm.client import LLMClient
 from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
@@ -143,7 +144,8 @@ def cmd_report(args, settings: Settings) -> int:
     open_findings = store.open_findings()
     decisions = {f.id: d for f in open_findings if (d := store.get_doc(DECISIONS, f.id))}
     brief = build_brief(store.latest_snapshot(), open_findings, store.events_since(iso(now - timedelta(hours=24))),
-                        now, decisions=decisions, budget=_budget_summary(settings, store, now))
+                        now, decisions=decisions, budget=_budget_summary(settings, store, now),
+                        tasks=TaskQueue(store).list())
     markdown = render_markdown(brief)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -388,6 +390,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_llm_smoke)
 
     sub.add_parser("status", help="stato interno").set_defaults(fn=cmd_status)
+
+    from supervisor.cli_engineer import register
+
+    register(sub)
     sub.add_parser("doctor", help="verifica configurazione e credenziali").set_defaults(fn=cmd_doctor)
     return parser
 

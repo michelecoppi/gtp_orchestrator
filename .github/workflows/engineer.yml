@@ -1,0 +1,161 @@
+name: Engineer
+
+# Worker engineering (M3): fix piccoli in draft PR per le issue che Michele approva con l'etichetta
+# `supervisor:fix` (docs/adr/0004-engineering-worker.md). Tre job con permessi separati:
+#   claim   -> token in sola lettura, stato: scopre le approvazioni e reclama un task
+#   work    -> token in sola lettura, chiavi AI; il codice patchato gira in Docker senza rete ne' segreti
+#   open-pr -> token di scrittura (contents + pull requests), nessuna chiave AI, nessun codice eseguito
+# Nessun merge: lo fa Michele dopo la review e la CI verde sullo SHA di testa.
+on:
+  schedule:
+    - cron: "37 6-19/2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: supervisor-engineer
+  cancel-in-progress: false
+
+env:
+  SUP_ENABLED: ${{ vars.SUP_ENABLED }}
+  SUP_STORE: firestore
+  SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
+  SUP_ADMIN_CHAT_ID: ${{ vars.SUP_ADMIN_CHAT_ID }}
+
+jobs:
+  claim:
+    if: github.repository == 'michelecoppi/gtp_supervisor' && vars.SUP_ENGINEER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      task_id: ${{ steps.claim.outputs.task_id }}
+      repo: ${{ steps.claim.outputs.repo }}
+      base_sha: ${{ steps.claim.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt -e .
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.SUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
+          owner: michelecoppi
+          repositories: guess_the_player_from_the_path
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      - name: Approvazioni e reclamo
+        id: claim
+        env:
+          SUP_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          python -m supervisor engineer scan
+          python -m supervisor engineer claim
+
+  work:
+    needs: claim
+    if: needs.claim.outputs.task_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      ready: ${{ steps.work.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt -r requirements-ai.txt -e .
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.SUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
+          owner: michelecoppi
+          repositories: guess_the_player_from_the_path
+          permission-contents: read
+      - name: Repository allo SHA di partenza
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.claim.outputs.repo }}
+          ref: ${{ needs.claim.outputs.base_sha }}
+          token: ${{ steps.app.outputs.token }}
+          path: target
+          persist-credentials: false
+      # Immagine di controllo: dipendenze installate dallo SHA di partenza, prima che la patch esista.
+      - name: Immagine di controllo
+        run: |
+          python -m supervisor engineer dockerfile --repo "${{ needs.claim.outputs.repo }}" --out check.Dockerfile
+          docker build -q -f check.Dockerfile -t gtp-check:latest target
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      - name: Patch e controlli isolati
+        id: work
+        env:
+          SUP_AI_ENABLED: ${{ vars.SUP_AI_ENABLED }}
+          OPENAI_API_KEY: ${{ secrets.SUP_OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.SUP_ANTHROPIC_API_KEY }}
+        run: |
+          python -m supervisor engineer work --task "${{ needs.claim.outputs.task_id }}" \
+            --workspace target --out out --runner docker --image gtp-check:latest
+          if [ -f out/patch.diff ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engineer-${{ needs.claim.outputs.task_id }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  open-pr:
+    needs: [claim, work]
+    if: needs.work.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt -e .
+      # Unico token di scrittura del sistema: branch e draft PR, solo sul repository del gioco.
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.SUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SUP_GITHUB_APP_KEY }}
+          owner: michelecoppi
+          repositories: guess_the_player_from_the_path
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: read
+      - name: Checkout pulito allo SHA di partenza
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.claim.outputs.repo }}
+          ref: ${{ needs.claim.outputs.base_sha }}
+          token: ${{ steps.app.outputs.token }}
+          path: target
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: engineer-${{ needs.claim.outputs.task_id }}
+          path: in
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      - name: Verifica e draft PR
+        env:
+          SUP_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+          SUP_GITHUB_WRITE_TOKEN: ${{ steps.app.outputs.token }}
+          SUP_TELEGRAM_BOT_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+        run: python -m supervisor engineer open-pr --task "${{ needs.claim.outputs.task_id }}" --workspace target --in in

@@ -16,7 +16,7 @@ from supervisor.core.scrub import register_secrets
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = ROOT / "config"
 STORES = ("firestore", "sqlite", "memory")
-_SECRET_FIELDS = ("github_token", "telegram_bot_token")
+_SECRET_FIELDS = ("github_token", "github_write_token", "telegram_bot_token")
 # Chiavi dei provider AI: le legge LiteLLM dall'ambiente, qui si registrano solo presso lo scrubber.
 PROVIDER_KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "google": "GEMINI_API_KEY"}
 
@@ -95,6 +95,8 @@ class Settings:
     firestore_project: str = ""
     game_firestore_project: str = ""
     github_token: str = ""
+    # Solo nel job dell'executor (branch e draft PR); mai nel worker che esegue codice patchato.
+    github_write_token: str = ""
     telegram_bot_token: str = ""
     admin_chat_id: str = ""
     config_dir: str = str(DEFAULT_CONFIG_DIR)
@@ -110,13 +112,14 @@ class Settings:
             firestore_project=env.get("SUP_FIRESTORE_PROJECT", ""),
             game_firestore_project=env.get("SUP_GAME_FIRESTORE_PROJECT", ""),
             github_token=env.get("SUP_GITHUB_TOKEN") or env.get("GITHUB_TOKEN", ""),
+            github_write_token=env.get("SUP_GITHUB_WRITE_TOKEN", ""),
             telegram_bot_token=env.get("SUP_TELEGRAM_BOT_TOKEN", ""),
             admin_chat_id=env.get("SUP_ADMIN_CHAT_ID", ""),
             config_dir=env.get("SUP_CONFIG_DIR") or str(DEFAULT_CONFIG_DIR),
         )
         if settings.store not in STORES:
             raise ConfigError(f"SUP_STORE non valido: {settings.store!r} (ammessi: {', '.join(STORES)})")
-        register_secrets(settings.github_token, settings.telegram_bot_token,
+        register_secrets(settings.github_token, settings.github_write_token, settings.telegram_bot_token,
                          *(env.get(name) for name in PROVIDER_KEY_ENV.values()))
         return settings
 

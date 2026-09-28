@@ -56,6 +56,7 @@ class FixtureHttp:
     def __init__(self, responses: dict[str, dict]) -> None:
         self.responses = responses
         self.calls: list[str] = []
+        self.bodies: list[tuple[str, Optional[dict]]] = []
 
     @classmethod
     def from_file(cls, path: Path | str) -> FixtureHttp:
@@ -65,6 +66,7 @@ class FixtureHttp:
     def request(self, method, url, params=None, headers=None, json_body=None):
         key = fixture_key(method, url, params)
         self.calls.append(key)
+        self.bodies.append((key, json_body))
         # Una fixture senza query vale per qualunque parametro (per esempio `since`, che cambia a
         # ogni giro): le risposte ripetute le scarta la deduplicazione degli eventi.
         item = self.responses.get(key) or self.responses.get(key.split("?", 1)[0])

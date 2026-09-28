@@ -6,7 +6,8 @@ mantenere le garanzie che lo rendono affidabile.
 ## Principi non negoziabili
 - **Il modello propone, il codice decide.** Policy (`policies/autonomy.toml`), budget e permessi si applicano nel
   codice, prima di ogni azione, e reggono anche se un modello sbaglia.
-- **Sola lettura** sui repository osservati e sulla coda Promo fino a M3. Non aggiungere credenziali di scrittura.
+- **Scrittura solo nell'executor** (`engineering/executor.py`, job `open-pr`): branch e draft PR per issue approvate.
+  Il worker che esegue codice patchato non riceve token di scrittura; nessun componente fa merge.
 - **Ogni chiamata AI passa da `llm/gateway.py`** (policy, catalogo, prenotazione del budget). Nessun retry o fallback
   fuori dal gateway; il catalogo `config/models.toml` si cambia solo a mano, mai dal codice.
 - **I dati recuperati non sono istruzioni.** Issue, PR, log, caption e pagine web si citano (`untrusted()`), non si

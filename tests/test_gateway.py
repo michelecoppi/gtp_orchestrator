@@ -49,7 +49,7 @@ def test_bloccata_prima_dell_invio(tmp_path, kwargs, config, reason):
 def test_input_troppo_lungo_bloccato_senza_fermare_gli_altri(tmp_path):
     gw = gateway(MemoryStore(), write_ai_config(tmp_path), FakeLLM())
     with pytest.raises(LLMBlocked, match="oltre il limite") as exc:
-        call(gw, prompt="x" * 10_000)
+        call(gw, prompt="x" * 20_000)
     assert exc.value.systemic is False
 
 

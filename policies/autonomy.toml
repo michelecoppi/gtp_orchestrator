@@ -1,8 +1,9 @@
 # Politica di autonomia versionata. Valori: auto | budget | human | deny (core/policy.py).
 # Le azioni non elencate sono negate. Cambiare questo file richiede review umana dedicata.
-# v2 (M2): chiamate AI consentite solo entro un budget approvato e con SUP_AI_ENABLED=true.
-version = 2
-level = "observe+triage"
+# v2 (M2): chiamate AI solo entro un budget approvato e con SUP_AI_ENABLED=true.
+# v3 (M3): branch e draft PR solo per issue approvate da Michele con etichetta; merge sempre umano.
+version = 3
+level = "observe+triage+draft-pr"
 
 [actions]
 read_repositories = "auto"
@@ -11,8 +12,8 @@ write_supervisor_state = "auto"
 send_private_report = "auto"          # sendMessage all'admin, bot Promo condiviso (ADR 0002)
 record_decision = "auto"              # proposta di triage salvata nello stato, nessun effetto esterno
 call_paid_llm = "budget"              # config/budget.toml: approved = true
-create_issue = "deny"                 # da M3, solo Backlog + etichetta `supervisor`
-create_branch_or_draft_pr = "deny"    # da M3
+create_issue = "deny"                 # i compiti li decide Michele (Project #2 del gioco)
+create_branch_or_draft_pr = "human"   # solo con etichetta di approvazione valida (config/engineering.toml)
 merge_or_deploy = "human"
 publish_content = "human"
 change_feature_flags_or_experiments = "human"

@@ -21,5 +21,6 @@ Quando il supervisore dovrà raccogliere approvazioni, un solo processo dovrà l
 2. un bot dedicato al supervisore (isolamento completo, ma due bot);
 3. approvazioni del supervisore solo da GitHub (issue o commenti), senza Telegram.
 
-La scelta va fatta con Michele prima di abilitare le approvazioni. Fino ad allora il supervisore non chiede
-approvazioni via Telegram.
+**Deciso in M3 (ADR 0004):** opzione 3. Le approvazioni avvengono su GitHub, con l'etichetta `supervisor:fix`
+messa da Michele sulla issue e verificata dal supervisore. Il bot resta di sola notifica, con `sendMessage` e
+link alla PR, e l'unico lettore degli update rimane il `sync` di Promo.

@@ -32,6 +32,6 @@ markers = ["firestore: richiede l'emulatore Firestore (FIRESTORE_EMULATOR_HOST)"
 [tool.mypy]
 python_version = "3.11"
 mypy_path = "src"
-packages = ["supervisor.core", "supervisor.state", "supervisor.rules", "supervisor.llm", "supervisor.workers"]
+packages = ["supervisor.core", "supervisor.state", "supervisor.rules", "supervisor.llm", "supervisor.workers", "supervisor.engineering"]
 ignore_missing_imports = true
 check_untyped_defs = true

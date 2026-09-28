@@ -4,9 +4,10 @@ Supervisore di [Guess the Player from the Path](https://github.com/michelecoppi/
 [Promo Studio](https://github.com/michelecoppi/promo_studio). Osserva sviluppo e promozione, registra fatti
 verificabili, riconosce i problemi con regole deterministiche e manda a Michele un brief quotidiano.
 
-Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0, M1 e M2**:
+Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0–M3**:
 - sola lettura sui repository osservati;
 - AI solo per il triage, entro un budget approvato e con prenotazione atomica (spenta finché Michele non la attiva);
+- draft PR solo per le issue che Michele approva con l'etichetta `supervisor:fix`, senza merge automatici;
 - nessuna azione senza approvazione.
 
 ```mermaid
@@ -42,6 +43,10 @@ flowchart LR
   proposta è validata da uno schema chiuso e non esegue nulla.
 - **Gateway AI e budget**: policy, catalogo prezzi versionato, prenotazione atomica (1 USD/giorno, 15 USD/mese),
   nessun retry né fallback automatico, riconciliazione delle chiamate dall'esito incerto.
+- **Worker engineering** (M3): per le issue approvate prepara una patch piccola. La verifica in Docker senza rete
+  né segreti, la fa rivedere da un modello di un altro provider e un executor separato (l'unico con permessi di
+  scrittura) apre una **draft PR** secondo le regole del gioco. Il supervisore segue poi la CI sullo SHA di
+  testa. Nessun merge automatico.
 - **Garanzie**:
   - deduplicazione degli eventi;
   - cursori che non si perdono dopo un crash;
@@ -50,19 +55,19 @@ flowchart LR
   - "non disponibile" al posto di zero.
 
 ## Comandi
-`python -m supervisor observe | report | status | doctor | replay | triage | budget | llm smoke` — vedi [docs/runbook.md](docs/runbook.md).
+`python -m supervisor observe | report | status | doctor | replay | triage | budget | llm smoke | engineer ...` — vedi [docs/runbook.md](docs/runbook.md).
 
 ## Documenti
 - [Audit M0 delle integrazioni](docs/audit/m0-integrations.md)
 - [ADR 0001 — stato su Firestore](docs/adr/0001-stato-firestore.md)
 - [ADR 0002 — bot condiviso](docs/adr/0002-bot-condiviso.md)
 - [ADR 0003 — budget e gateway AI](docs/adr/0003-budget-e-gateway-ai.md)
+- [ADR 0004 — worker engineering](docs/adr/0004-engineering-worker.md)
 - [Runbook](docs/runbook.md) · [Regole per gli agenti](AGENTS.md)
 
 ## Prossime tranche
 | Fase | Contenuto |
 |---|---|
-| M3 | Worker engineering isolato, executor separato, draft PR nel rispetto di `AGENTS.md` del gioco |
 | M4 | `campaign_id`/`brief_id`, funnel PostHog, brief strutturati verso Promo |
 | M5–M6 | Confronto provider, runbook operativo completo |
 

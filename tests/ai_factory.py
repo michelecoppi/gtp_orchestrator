@@ -11,22 +11,22 @@ from supervisor.llm.gateway import LLMGateway
 
 def write_ai_config(tmp_path: Path, *, approved: bool = True, verified: bool = True, enabled: bool = True,
                     daily_hard: float = 1.0, monthly_hard: float = 15.0, price_until: str = "",
-                    max_calls: int = 8) -> Path:
+                    max_calls: int = 8, extra_models: tuple[str, ...] = ()) -> Path:
     config = tmp_path / "config"
     config.mkdir(exist_ok=True)
     until = f', until = "{price_until}"' if price_until else ""
-    (config / "models.toml").write_text(f'''
-version = "test-1"
+    entries = [f'''
 [[models]]
-key = "test-model"
+key = "{key}"
 provider = "openai"
-litellm_model = "openai/test-model"
+litellm_model = "openai/{key}"
 enabled = {str(enabled).lower()}
 access_verified = {str(verified).lower()}
-max_input_tokens = 2000
-max_output_tokens = 1000
+max_input_tokens = 5000
+max_output_tokens = 10000
 prices = [{{ from = "2026-01-01"{until}, input = 1.00, output = 2.00 }}]
-''', encoding="utf-8")
+''' for key in ("test-model", *extra_models)]
+    (config / "models.toml").write_text('version = "test-1"\n' + "".join(entries), encoding="utf-8")
     (config / "budget.toml").write_text(f'''
 approved = {str(approved).lower()}
 approved_by = "Michele Coppi"
