@@ -1,5 +1,20 @@
 # Runbook
 
+## Stato del setup (28/09/2026)
+
+| Passo | Stato |
+|---|---|
+| Repository `michelecoppi/gtp_orchestrator` (pubblico), CI verde | fatto |
+| Progetto GCP `gtp-orchestrator` (n. 752943707933), Firestore Native `europe-west1`, senza fatturazione | fatto |
+| Service account `supervisor@gtp-orchestrator.iam.gserviceaccount.com`: `datastore.user` sul proprio progetto, `datastore.viewer` su `guess-the-player-from-path-bot` | fatto |
+| Workload Identity: pool `github`, provider `gtp-orchestrator`, condizione `assertion.repository=='michelecoppi/gtp_orchestrator'` | fatto |
+| Secret `SUP_WIF_PROVIDER`, `SUP_WIF_SERVICE_ACCOUNT`; variabili progetti, chat admin, interruttori a `false` | fatto |
+| Etichetta `supervisor:fix` sul repository del gioco | fatto |
+| Budget AI approvato (1 USD/giorno, 15 USD/mese) | fatto |
+| GitHub App dedicata + `SUP_GITHUB_APP_ID` / `SUP_GITHUB_APP_KEY` | **Michele** |
+| Secret `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENAI_API_KEY`, `SUP_ANTHROPIC_API_KEY` | **Michele** |
+| `llm smoke` e `access_verified = true` nel catalogo, poi interruttori a `true` | dopo i secret |
+
 ## Setup iniziale (una volta, a cura di Michele)
 
 1. **Progetto GCP dedicato** (es. `gtp-supervisor`): abilitare Firestore in modalità Native, regione `europe-west1`.
