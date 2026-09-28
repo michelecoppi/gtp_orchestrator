@@ -45,6 +45,13 @@ def _pct(r: dict[str, Any]) -> str:
     return f"{r['value']:.0%} ({r['numerator']}/{r['denominator']})"
 
 
+def _fmt(r: dict[str, Any]) -> str:
+    """Tasso con lo stato della lettura, senza ripetere "non disponibile"."""
+    if r.get("value") is None:
+        return "non disponibile" + (" (coorte immatura)" if r.get("status") == "immatura" else "")
+    return _pct(r) + LABELS.get(r.get("status", ""), "")
+
+
 def product_lines(facts: dict[str, Any]) -> list[str]:
     """Righe del report prodotto; usate dal brief quotidiano e dalla review settimanale."""
     if not facts:
@@ -58,22 +65,22 @@ def product_lines(facts: dict[str, Any]) -> list[str]:
                                                       for k, v in sorted(volumes.items())))
     channels = facts.get("activation_by_channel") or []
     lines.append("Attivazione 24h per canale: " + ("; ".join(
-        f"{c['channel']} {_pct(c)}{LABELS.get(c['status'], '')}" for c in channels) or "non disponibile (nessun "
+        f"{c['channel']} {_fmt(c)}" for c in channels) or "non disponibile (nessun "
         "nuovo ingresso)"))
     campaigns = facts.get("activation_by_campaign") or []
     if campaigns:
         lines.append("Attivazione 24h per campagna: " + "; ".join(
-            f"{c['campaign_id']} {_pct(c)}{LABELS.get(c['status'], '')}" for c in campaigns[:8]))
+            f"{c['campaign_id']} {_fmt(c)}" for c in campaigns[:8]))
     completion = facts.get("completion") or {}
     if completion:
         lines.append(f"Daily ultimi {completion.get('window_days')} giorni: completamento "
-                     f"{_pct(completion['completion'])}{LABELS.get(completion['completion']['status'], '')}, "
+                     f"{_fmt(completion['completion'])}, "
                      f"suggerimenti {_pct(completion['hints'])}, tentativi medi "
                      f"{completion.get('attempts_per_completion') or 'non disponibile'}")
     cohorts = [c for c in facts.get("return_cohorts") or []]
     if cohorts:
         lines.append("Ritorno a 7 giorni per coorte: " + "; ".join(
-            f"{c['week']} {_pct(c)}{LABELS.get(c['status'], '')}" for c in cohorts[-4:]))
+            f"{c['week']} {_fmt(c)}" for c in cohorts[-4:]))
     else:
         lines.append("Ritorno a 7 giorni: non disponibile")
     north = facts.get("north_star") or []
@@ -85,7 +92,7 @@ def product_lines(facts: dict[str, Any]) -> list[str]:
         lines.append("North Star: non disponibile (nessun nuovo ingresso)")
     referral = facts.get("referral") or {}
     if referral:
-        lines.append(f"Referral 30 giorni: {_pct(referral)}{LABELS.get(referral['status'], '')}")
+        lines.append(f"Referral 30 giorni: {_fmt(referral)}")
     for error in facts.get("errors") or []:
         lines.append(f"Errore PostHog: {untrusted(error, 160)}")
     return lines
