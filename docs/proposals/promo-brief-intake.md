@@ -1,6 +1,6 @@
 # Proposta di issue — Promo Studio: ricezione dei brief del supervisore
 
-**Repository:** `michelecoppi/promo_studio` · **Tipo:** feature · **Stato:** aperta il 29/09/2026 come [promo_studio#1](https://github.com/michelecoppi/promo_studio/issues/1), dipende dal gioco [#218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218)
+**Repository:** `michelecoppi/promo_studio` · **Tipo:** feature · **Stato:** implementata e chiusa il 29/09/2026 ([promo_studio#1](https://github.com/michelecoppi/promo_studio/issues/1), PR #2, commit `c750cef`); campi letti da `brief-import`: campaign_id, language, format, channel, cta, angle, facts, day
 
 ---
 

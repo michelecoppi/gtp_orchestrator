@@ -1,6 +1,6 @@
 # Proposta di issue — gioco: `campaign_id` nei link di campagna
 
-**Repository:** `michelecoppi/guess_the_player_from_the_path` · **Tipo:** feature · **Stato:** aperta il 29/09/2026 come [#218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218)
+**Repository:** `michelecoppi/guess_the_player_from_the_path` · **Tipo:** feature · **Stato:** implementata e chiusa il 29/09/2026 ([#218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218), PR #219, commit `54c4109`)
 
 ---
 

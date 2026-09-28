@@ -132,6 +132,10 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   stima del costo. Produce una proposta con i campi della specifica (sez. 11) e la fattibilità calcolata dal
   codice. Se riguarda la promozione, aggiunge una bozza di brief per Promo con `campaign_id`. Per vedere le
   bozze: `python -m supervisor growth briefs`.
+- **Dal brief alla bozza Promo**: il workflow *Growth* allega `briefs/<campaign_id>.json`. Si scarica e nel
+  repository di Promo si lancia `python -m promo brief-import <campaign_id>.json` (con `--dry-run` per provare).
+  Il link di tracciamento contiene la campagna solo con `PROMO_CAMPAIGN_LINKS=true`. I nuovi giocatori arrivati
+  dal link compaiono nel brief quotidiano alla voce "Attivazione 24h per campagna".
 - **La chiave PostHog** va creata in PostHog (*Settings → Personal API keys*) con il solo permesso di lettura
   delle query, sul progetto 275711.
 - **Dati di qualità**: se compare il finding `analytics_data_quality` (per esempio `bot_started` assente), si

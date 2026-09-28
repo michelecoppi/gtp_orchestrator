@@ -59,6 +59,7 @@ BASELINE = {  # la situazione reale del 27/09: niente bot_started, pochi utenti 
     "toStartOfWeek(f.first_day": [["2026-09-21", 3, 0, 0], ["2026-09-28", 2, 0, 0]],
     "referral_attached = true) AS attached": [[0, 0]],
 }
+WITH_CAMPAIGN = {**BASELINE, "properties.campaign_id, timestamp": [["2026w40-whois", 12, 5]]}
 
 
 def test_stati_della_lettura():
@@ -85,7 +86,7 @@ def test_errori_isolati_e_chiave_mancante():
     facts = collect_product(HogQL(FakePostHog(BASELINE, fail=("uniqIf(tuple",)), CONFIG, "k"), CONFIG)
     assert facts.errors == ["completamento: PostHog HTTP 500 boom"] and facts.volumes
     facts = collect_product(HogQL(FakePostHog(BASELINE), CONFIG, ""), CONFIG)
-    assert len(facts.errors) == 6 and "non configurata" in facts.errors[0]
+    assert len(facts.errors) == 7 and "non configurata" in facts.errors[0]
 
 
 def test_collector_con_cache_e_non_configurato():
@@ -199,3 +200,36 @@ def test_configurazioni_versionate():
     promo = load_promo_facts(ROOT / "config")
     assert promo.languages == ("it", "en", "es") and all(f["source"] for f in promo.facts)
     assert campaign_code("2026-W40", "who_is") == "2026w40-whois"
+
+
+
+def test_attivazione_per_campagna():
+    http = FakePostHog(WITH_CAMPAIGN)
+    facts = collect_product(HogQL(http, CONFIG, "k"), CONFIG)
+    assert facts.activation_by_campaign == [{"campaign_id": "2026w40-whois", **rate(5, 12, 30)}]
+    query = next(q for q in http.queries if "properties.campaign_id, timestamp" in q)
+    assert "s.channel IS NOT NULL" in query and "is_new_user" in query
+    assert "Attivazione 24h per campagna: 2026w40-whois 42% (5/12)" in "\n".join(product_lines(facts.__dict__))
+
+
+def test_file_per_promo_compatibile_con_brief_import(tmp_path):
+    from supervisor.product.growth import (
+        GAME_CAMPAIGN_ID,
+        PROMO_IMPORT_FIELDS,
+        build_brief,
+        promo_import_payload,
+    )
+
+    promo = load_promo_facts(ROOT / "config")
+    assert promo.channels == ("telegram_channel", "tiktok", "x") and "solution" not in promo.formats
+    for fmt in promo.formats:
+        for channel in promo.channels:
+            proposal = parse_proposal(json.dumps({**GOOD, "promo": {**GOOD["promo"], "format": fmt,
+                                                                      "channel": channel}}), promo)
+            payload = promo_import_payload(build_brief("2026-W40", proposal, promo, NOW))
+            assert tuple(payload) == PROMO_IMPORT_FIELDS
+            assert GAME_CAMPAIGN_ID.fullmatch(payload["campaign_id"])  # attribuibile dal gioco
+            assert len(f"src_{channel}-{payload['campaign_id']}") <= 64  # limite di Telegram controllato da Promo
+            assert payload["facts"] and all(isinstance(f, str) for f in payload["facts"])
+    instagram = parse_proposal(json.dumps({**GOOD, "promo": {**GOOD["promo"], "channel": "instagram"}}), promo)
+    assert instagram["promo"]["channel"] == "telegram_channel"  # Promo non pubblica su Instagram

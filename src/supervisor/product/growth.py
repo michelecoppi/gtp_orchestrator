@@ -60,6 +60,10 @@ def product_lines(facts: dict[str, Any]) -> list[str]:
     lines.append("Attivazione 24h per canale: " + ("; ".join(
         f"{c['channel']} {_pct(c)}{LABELS.get(c['status'], '')}" for c in channels) or "non disponibile (nessun "
         "nuovo ingresso)"))
+    campaigns = facts.get("activation_by_campaign") or []
+    if campaigns:
+        lines.append("Attivazione 24h per campagna: " + "; ".join(
+            f"{c['campaign_id']} {_pct(c)}{LABELS.get(c['status'], '')}" for c in campaigns[:8]))
     completion = facts.get("completion") or {}
     if completion:
         lines.append(f"Daily ultimi {completion.get('window_days')} giorni: completamento "
@@ -244,12 +248,26 @@ def build_brief(week: str, proposal: dict[str, Any], promo: PromoFacts, now: dat
         "channel": raw["channel"], "cta": raw["cta"], "angle": raw["angle"],
         "facts": [f["text"] for f in promo.facts],
         "fact_sources": [f["source"] for f in promo.facts],
-        # Richiede il supporto a campaign_id nel gioco (docs/proposals/game-campaign-id.md).
+        # Gioco #218: `src_<fonte>-<campagna>` -> acquisition_channel + campaign_id. In Promo il link usa la
+        # campagna solo con PROMO_CAMPAIGN_LINKS=true.
         "proposed_start_param": f"src_{raw['channel']}-{code}"[:64],
         "primary_metric": proposal["primary_metric"],
         "warnings": ([f"numeri nel testo del modello da verificare o togliere: {', '.join(numbers)}"]
                      if numbers else []),
     }
+
+
+# Campi letti da `python -m promo brief-import` (promo_studio, promo/briefs.py::validate).
+PROMO_IMPORT_FIELDS = ("campaign_id", "language", "format", "channel", "cta", "angle", "facts")
+# Stessa regola del gioco (services/product_analytics.py::CAMPAIGN_ID): altrimenti la campagna non si attribuisce.
+GAME_CAMPAIGN_ID = re.compile(r"^[a-z0-9-]{1,24}$")
+
+
+def promo_import_payload(brief: dict[str, Any]) -> dict[str, Any]:
+    """Il file JSON per Promo Studio: solo i campi che `brief-import` legge, campagna valida per il gioco."""
+    if not GAME_CAMPAIGN_ID.fullmatch(brief["campaign_id"]):
+        raise ValueError(f"campaign_id non valido per il gioco: {brief['campaign_id']}")
+    return {key: brief[key] for key in PROMO_IMPORT_FIELDS}
 
 
 def weekly_review(store: StateStore, gateway: Optional[LLMGateway], facts: dict[str, Any], config: ProductConfig,
@@ -264,7 +282,8 @@ def weekly_review(store: StateStore, gateway: Optional[LLMGateway], facts: dict[
     if gateway is None or not facts:
         result.detail = "nessun modello o nessuna metrica: solo report deterministico"
         return result
-    payload = {k: facts.get(k) for k in ("volumes", "activation_by_channel", "completion", "return_cohorts",
+    payload = {k: facts.get(k) for k in ("volumes", "activation_by_channel", "activation_by_campaign", "completion",
+                                          "return_cohorts",
                                           "north_star", "referral", "data_quality")}
     payload["min_users"] = config.min_users
     prompt = (f"<dati>\nMETRICHE DELLA SETTIMANA {week} (soglia minima {config.min_users} utenti):\n{payload!r}\n\n"
@@ -340,7 +359,8 @@ def review_markdown(result: ReviewResult) -> str:
                   f"- **campaign_id:** `{b['campaign_id']}` · **canale:** {b['channel']} · **lingua:** {b['language']} "
                   f"· **formato:** {b['format']}",
                   f"- **Pubblico:** {b['audience']}", f"- **Angolo:** {b['angle']}", f"- **CTA:** {b['cta']}",
-                  f"- **Parametro /start proposto:** `{b['proposed_start_param']}` (richiede supporto nel gioco)",
+                  f"- **Parametro /start:** `{b['proposed_start_param']}`",
+                  f"- **Per Promo:** `python -m promo brief-import {b['campaign_id']}.json` (file nell'artifact)",
                   "- **Fatti utilizzabili:**"] + [f"  - {fact}" for fact in b["facts"]]
         lines += [f"- ATTENZIONE: {w}" for w in b["warnings"]]
     return "\n".join(lines) + "\n"

@@ -14,7 +14,13 @@ from supervisor.cli import _now, build_gateway
 from supervisor.collectors.http import RequestsHttp
 from supervisor.core.config import Settings
 from supervisor.llm.catalog import load_routing
-from supervisor.product.growth import PROMO_BRIEFS, load_promo_facts, review_markdown, weekly_review
+from supervisor.product.growth import (
+    PROMO_BRIEFS,
+    load_promo_facts,
+    promo_import_payload,
+    review_markdown,
+    weekly_review,
+)
 from supervisor.product.metrics import HogQL, collect_product, load_product
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state import open_store
@@ -47,6 +53,8 @@ def cmd_review(args, settings: Settings) -> int:
     if args.out:
         Path(args.out).mkdir(parents=True, exist_ok=True)
         (Path(args.out) / "review.md").write_text(text, encoding="utf-8")
+        if result.brief:
+            _export(result.brief, Path(args.out) / "briefs")
     print(text)
     if args.dry_run:
         print(f"[dry-run] stima {result.estimate_usd:.4f} USD — {result.detail}")
@@ -63,11 +71,22 @@ def cmd_review(args, settings: Settings) -> int:
     return 0
 
 
+def _export(brief: dict, folder: Path) -> Path:
+    import json
+
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{brief['campaign_id']}.json"
+    path.write_text(json.dumps(promo_import_payload(brief), ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
 def cmd_briefs(args, settings: Settings) -> int:
     store = open_store(settings)
     briefs = store.query_docs(PROMO_BRIEFS, "state", "draft")
     for brief in sorted(briefs, key=lambda b: b["created_at"]):
         print(f"{brief['campaign_id']}: {brief['channel']} / {brief['language']} / {brief['format']} — {brief['cta']}")
+        if args.export:
+            print(f"  -> {_export(brief, Path(args.export))} (python -m promo brief-import <file>)")
     if not briefs:
         print("nessuna bozza di brief")
     return 0
@@ -84,4 +103,5 @@ def register(sub) -> None:
     r.add_argument("--now", help=argparse.SUPPRESS)
     r.set_defaults(fn=cmd_review)
     b = g.add_parser("briefs", help="bozze di brief per Promo Studio")
+    b.add_argument("--export", help="cartella dove scrivere i JSON per `python -m promo brief-import`")
     b.set_defaults(fn=cmd_briefs)

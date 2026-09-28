@@ -8,7 +8,9 @@ Definizioni del gioco (docs/product-analytics.md §12, §15b) e North Star della
 - ritorno a 7 giorni per coorte settimanale: primo tentativo di sempre; conta solo chi ha 7 giorni maturi;
 - North Star: nuovi ingressi della settimana che completano una Daily nella Mini App entro 7 giorni
   (solo settimane mature);
-- referral: aperture con `referral_attached = true` e conversioni.
+- referral: aperture con `referral_attached = true` e conversioni;
+- attivazione 24h per campagna: come per canale, raggruppata per `campaign_id` di `bot_started` (gioco #218:
+  link `src_<fonte>-<campagna>`); chiude il giro brief di Promo -> nuovi giocatori attivati.
 
 Regole sui dati: un evento assente vuol dire nessun denominatore, non 0%; sotto la soglia minima di utenti
 si mostrano i conteggi ma il tasso non si interpreta; coorti immature senza tasso. `is_new_user` in questo
@@ -121,21 +123,26 @@ def volume_query(config: ProductConfig) -> str:
             f"GROUP BY event ORDER BY events DESC")
 
 
-def activation_query(config: ProductConfig) -> str:
+def activation_query(config: ProductConfig, by: str = "acquisition_channel") -> str:
     days = int(config.activation_window_days)
     return (
         "SELECT s.channel, count() AS started, countIf(g.first_guess IS NOT NULL "
         "AND g.first_guess <= s.started_at + INTERVAL 24 HOUR) AS activated FROM ("
         "  SELECT distinct_id, min(timestamp) AS started_at, "
-        "argMin(properties.acquisition_channel, timestamp) AS channel, argMin(properties.is_new_user, timestamp) AS new "
+        f"argMin(properties.{by}, timestamp) AS channel, argMin(properties.is_new_user, timestamp) AS new "
         f"  FROM events WHERE event = 'bot_started' AND {_env(config)} GROUP BY distinct_id"
         f") AS s LEFT JOIN ("
         "  SELECT distinct_id, min(timestamp) AS first_guess FROM events "
         f"  WHERE event = 'daily_guess_submitted' AND {_env(config)} GROUP BY distinct_id"
         ") AS g ON s.distinct_id = g.distinct_id "
-        f"WHERE s.new = 'true' AND s.started_at >= now() - INTERVAL {days} DAY "
-        "GROUP BY s.channel ORDER BY started DESC"
+        f"WHERE s.new = 'true' AND s.started_at >= now() - INTERVAL {days} DAY"
+        + (" AND s.channel IS NOT NULL AND s.channel != ''" if by != "acquisition_channel" else "")
+        + " GROUP BY s.channel ORDER BY started DESC"
     )
+
+
+def campaign_query(config: ProductConfig) -> str:
+    return activation_query(config, by="campaign_id")
 
 
 def completion_query(config: ProductConfig) -> str:
@@ -201,6 +208,7 @@ def referral_query(config: ProductConfig) -> str:
 class ProductFacts:
     volumes: dict[str, dict[str, int]] = field(default_factory=dict)
     activation_by_channel: list[dict[str, Any]] = field(default_factory=list)
+    activation_by_campaign: list[dict[str, Any]] = field(default_factory=list)
     completion: dict[str, Any] = field(default_factory=dict)
     return_cohorts: list[dict[str, Any]] = field(default_factory=list)
     north_star: list[dict[str, Any]] = field(default_factory=list)
@@ -236,6 +244,12 @@ def collect_product(hogql: HogQL, config: ProductConfig) -> ProductFacts:
             for r in hogql.run(activation_query(config))
         ]
 
+    def campaigns() -> None:
+        facts.activation_by_campaign = [
+            {"campaign_id": str(r[0]), **rate(_int(r[2]), _int(r[1]), min_users)}
+            for r in hogql.run(campaign_query(config)) if r and r[0]
+        ]
+
     def completion() -> None:
         rows = hogql.run(completion_query(config))
         attempting, completed, hinted, attempts = (rows[0] + [None] * 4)[:4] if rows else (0, 0, 0, None)
@@ -267,7 +281,8 @@ def collect_product(hogql: HogQL, config: ProductConfig) -> ProductFacts:
         attached, converted = (rows[0] + [0, 0])[:2] if rows else (0, 0)
         facts.referral = rate(_int(converted), _int(attached), min_users, "aperture con referral_attached")
 
-    for name, fn in (("volumi", volumes), ("attivazione", activation), ("completamento", completion),
+    for name, fn in (("volumi", volumes), ("attivazione", activation), ("campagne", campaigns),
+                     ("completamento", completion),
                      ("ritorno", returns), ("north_star", north_star), ("referral", referral)):
         guarded(name, fn)
 

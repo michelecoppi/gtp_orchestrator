@@ -30,6 +30,19 @@ Il gioco ha già definizioni, finestre, soglie minime (30 utenti) e una procedur
 7. **Qualità dei dati come finding.** Un evento chiave assente è un finding (`analytics_data_quality`), non un
    crollo del funnel.
 
+## Aggiornamento 29/09/2026 — giro chiuso con gioco e Promo
+- Gioco [#218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218): `bot_started` porta `campaign_id` dai link `src_<fonte>-<campagna>`, con
+  campagna `[a-z0-9-]{1,24}`. Il supervisore misura l'attivazione a 24 ore per campagna.
+- Promo [#1](https://github.com/michelecoppi/promo_studio/issues/1): `python -m promo brief-import <file.json>`. Il supervisore scrive il file (artifact
+  del workflow Growth, `growth briefs --export`) con i soli campi letti da Promo e con valori dei suoi elenchi:
+  - canali `tiktok`, `telegram_channel`, `x`;
+  - formati senza `solution`.
+
+  Il link con la campagna è attivo solo con `PROMO_CAMPAIGN_LINKS=true` in Promo.
+- Differenza da sistemare in Promo: `brief-import` accetta `campaign_id` con maiuscole e `_`, che il gioco non
+  attribuisce (l'esempio `2026w40_it_tiktok` perderebbe la campagna). Gli id generati dal supervisore rispettano
+  la regola del gioco, verificata da un test.
+
 ## Conseguenze
 - Con i volumi attuali (pochi utenti al giorno) quasi tutte le proposte saranno qualitative o riguarderanno i
   dati. È il risultato corretto: nessun "vincitore" su numeri piccoli.

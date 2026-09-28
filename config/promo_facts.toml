@@ -3,10 +3,12 @@
 # Aggiornare solo con fonte; i numeri (utenti, percentuali) NON stanno qui: si usano solo quelli calcolati
 # da PostHog sopra la soglia minima.
 
+# Valori ammessi da `python -m promo brief-import` (promo_studio: promo/briefs.py, promo/models.py al commit
+# c750cef): canali pubblicabili da Promo e formati richiedibili (non `solution`, che nasce solo
+# dall'indovinello del giorno prima).
 languages = ["it", "en", "es"]
-channels = ["telegram_channel", "tiktok", "instagram", "youtube", "reddit", "x", "threads", "facebook",
-            "telegram_group", "creator", "producthunt", "directory", "qr"]
-formats = ["who_is", "percent", "ladder", "journeyman", "solution"]
+channels = ["telegram_channel", "tiktok", "x"]
+formats = ["who_is", "percent", "ladder", "journeyman"]
 
 [[facts]]
 text = "Ogni giorno una nuova sfida: indovinare un calciatore dal percorso delle squadre in cui ha giocato."
