@@ -1,9 +1,9 @@
 # Budget AI (specifica, sez. 9). Il tetto e' applicato da core/budget.py con una prenotazione atomica
 # in transazione prima di ogni chiamata; questo file fissa solo i valori.
 # Finche' `approved = false` nessuna chiamata a pagamento parte, qualunque altra impostazione ci sia.
-approved = false
-approved_by = ""       # es. "Michele Coppi"
-approved_on = ""       # es. "2026-09-29"
+approved = true
+approved_by = "Michele Coppi"
+approved_on = "2026-09-28"
 currency = "USD"
 timezone = "Europe/Rome"
 daily_soft_limit = 0.50

@@ -146,7 +146,7 @@ def test_config_budget(tmp_path):
         load_budget(config)
 
 
-def test_budget_versionato_valido_e_non_approvato():
+def test_budget_versionato_valido_e_approvato():
     budget = load_budget("config")
-    assert not budget.limits.approved
+    assert budget.limits.approved and budget.limits.approved_by == "Michele Coppi"
     assert micros_to_usd(budget.limits.monthly_hard) == 15.0 and micros_to_usd(budget.limits.daily_hard) == 1.0
