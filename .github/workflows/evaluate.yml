@@ -75,6 +75,16 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      # Credito e limite della chiave OpenRouter (solo numeri, mai la chiave): un 402 vuol dire credito esaurito.
+      - name: Credito OpenRouter
+        if: inputs.suite == 'smoke'
+        run: |
+          curl -s -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/key \
+            | python -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print('chiave:', {k: d.get(k) for k in ('usage','limit','limit_remaining','is_free_tier')})" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          curl -s -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/credits \
+            | python -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print('account:', d)" \
+            | tee -a "$GITHUB_STEP_SUMMARY" || true
       - name: Smoke test di accesso
         if: inputs.suite == 'smoke'
         run: |
