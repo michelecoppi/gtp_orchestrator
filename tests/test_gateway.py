@@ -237,3 +237,54 @@ def test_reasoning_effort_dal_catalogo_all_adapter():
     seen.clear()
     LiteLLMClient(completion).complete(LLMRequest("openrouter/g", "t", "s", "p", 5))
     assert "reasoning_effort" not in seen
+
+
+
+def test_json_estratto_anche_con_testo_intorno():
+    from supervisor.llm.jsonout import NoJsonObject, extract_object
+
+    assert extract_object('Ecco la risposta:\n```json\n{"a": 1, "b": {"c": 2}}\n```\nFine.') == {"a": 1, "b": {"c": 2}}
+    assert extract_object('{"a": "graffa } dentro"}') == {"a": "graffa } dentro"}
+    with pytest.raises(NoJsonObject):
+        extract_object('{"a": 1')  # troncato
+
+
+def test_costo_dichiarato_dal_provider_se_maggiore(tmp_path):
+    from supervisor.llm.client import LLMResponse
+
+    class DeclaredCost(FakeLLM):
+        def complete(self, request):
+            super().complete(request)
+            return LLMResponse("ok", "fake", request.model, 40, 100, provider_cost_usd=0.001)
+
+    store = MemoryStore()
+    result = call(gateway(store, write_ai_config(tmp_path), DeclaredCost()))
+    assert result.cost_micros == 1000  # dai token sarebbero 240 micro: vale il dichiarato
+    assert "dichiarato" in store.get_doc("usage", result.call_id)["note"]
+
+    class LowDeclared(FakeLLM):
+        def complete(self, request):
+            super().complete(request)
+            return LLMResponse("ok", "fake", request.model, 40, 100, provider_cost_usd=0.0000001)
+
+    (tmp_path / "b").mkdir()
+    assert call(gateway(MemoryStore(), write_ai_config(tmp_path / "b"), LowDeclared())).cost_micros == 240
+
+
+def test_openrouter_chiede_il_costo_e_lo_legge():
+    seen = {}
+
+    class Obj:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    def completion(**kwargs):
+        seen.update(kwargs)
+        return Obj(model="m", usage=Obj(prompt_tokens=10, completion_tokens=5, cost=0.0042),
+                   choices=[Obj(message=Obj(content="{}"))])
+
+    from supervisor.llm.client import LLMRequest
+
+    r = LiteLLMClient(completion).complete(LLMRequest("openrouter/openai/x", "t", "s", "p", 5))
+    assert seen["extra_body"] == {"usage": {"include": True}} and r.provider_cost_usd == 0.0042
+    assert load_catalog("config").get("gpt-6-sol@openrouter").provider_cost_markup == 1.055

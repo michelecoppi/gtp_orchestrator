@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -18,6 +17,7 @@ from supervisor.core.clock import iso
 from supervisor.core.models import Finding
 from supervisor.core.scrub import untrusted
 from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
+from supervisor.llm.jsonout import NoJsonObject, extract_object
 from supervisor.state.store import DECISIONS, StateStore
 
 TASK = "triage"
@@ -84,14 +84,11 @@ def build_prompt(finding: Finding) -> str:
 
 
 def parse_output(text: str) -> dict:
-    raw = text.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`").removeprefix("json").strip()
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise InvalidOutput(f"JSON non valido: {exc.msg}") from exc
-    if not isinstance(data, dict) or set(data) != set(REQUIRED):
+        data = extract_object(text)
+    except NoJsonObject as exc:
+        raise InvalidOutput(f"JSON non valido: {exc}") from exc
+    if set(data) != set(REQUIRED):
         raise InvalidOutput("campi diversi da quelli dello schema")
     if data["priority"] not in PRIORITIES or data["role"] not in ROLES:
         raise InvalidOutput("priorita' o ruolo fuori elenco")

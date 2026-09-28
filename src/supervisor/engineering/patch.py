@@ -91,8 +91,25 @@ def apply_edits(workspace: Path, edits: list[Edit], repo: RepoEngineering) -> No
             raise PatchRejected(f"{edit.path} non e' un file di testo UTF-8") from exc
         count = text.count(edit.search)
         if count != 1:
-            raise PatchRejected(f"{edit.path}: il testo da sostituire compare {count} volte (serve esattamente 1)")
+            raise PatchRejected(f"{edit.path}: il testo da sostituire compare {count} volte (serve esattamente 1)"
+                                + _where(text, edit.search, count))
         target.write_text(text.replace(edit.search, edit.replace, 1), encoding="utf-8", newline="")
+
+
+def _where(text: str, search: str, count: int) -> str:
+    """Aiuto per il tentativo successivo: righe delle occorrenze, o la riga piu' simile se non ce n'e' nessuna."""
+    if count > 1:
+        lines: list[str] = []
+        index = text.find(search)
+        while index != -1 and len(lines) < 10:
+            lines.append(str(text.count("\n", 0, index) + 1))
+            index = text.find(search, index + 1)
+        return f"; occorrenze alle righe {', '.join(lines)}: includere piu' contesto per renderlo unico"
+    first = next((line.strip() for line in search.splitlines() if line.strip()), "")
+    for number, line in enumerate(text.splitlines(), 1):
+        if first and first in line:
+            return f"; la prima riga cercata compare alla riga {number}: copiare il testo esatto (spazi inclusi)"
+    return "; nessuna riga simile: rileggere il file"
 
 
 def diff(workspace: Path) -> str:

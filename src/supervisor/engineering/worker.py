@@ -35,6 +35,7 @@ from supervisor.engineering.patch import (
 )
 from supervisor.engineering.runner import CheckResult, CheckRunner, run_checks
 from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
+from supervisor.llm.jsonout import NoJsonObject, extract_object
 
 PROMPT_VERSION = "engineer-v1"
 AGENTS_LIMIT = 6000
@@ -132,14 +133,11 @@ HARD_ARRAYS = ("edits",)
 def parse_object(text: str, schema: dict) -> dict:
     """JSON conforme allo schema. Tipi, campi ed elenchi chiusi sono rigidi; i testi troppo lunghi si troncano
     (un modello prolisso non deve perdere una patch valida) e cosi' gli elenchi descrittivi, ma non `edits`."""
-    raw = text.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`").removeprefix("json").strip()
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise InvalidModelOutput(f"JSON non valido: {exc.msg}") from exc
-    if not isinstance(data, dict) or set(data) != set(schema["required"]):
+        data = extract_object(text)
+    except NoJsonObject as exc:
+        raise InvalidModelOutput(f"JSON non valido: {exc}") from exc
+    if set(data) != set(schema["required"]):
         raise InvalidModelOutput("campi diversi da quelli dello schema")
     properties: dict[str, dict[str, Any]] = schema["properties"]
     for name, spec in properties.items():

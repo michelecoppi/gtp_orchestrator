@@ -392,3 +392,13 @@ def test_errore_finale_spiega_i_tentativi(tmp_path):
     ws, base, _, _, gw = worker_setup(tmp_path, {"engineer_plan": PLAN, "engineer_patch": [bad, bad]})
     result = run_work(task_doc(base), ws, repo_config(), gw, LocalRunner(), MODELS, NOW)
     assert result.status == "failed" and "t1: score.py: il testo da sostituire compare 0 volte" in result.error
+
+
+
+def test_sostituzione_ambigua_indica_le_righe(tmp_path):
+    ws, _ = make_repo(tmp_path / "repo")
+    (ws / "dup.py").write_text("x = 1\ny = 2\nx = 1\n", encoding="utf-8", newline="\n")
+    with pytest.raises(PatchRejected, match="occorrenze alle righe 1, 3"):
+        apply_edits(ws, [Edit("dup.py", "x = 1\n", "x = 3\n")], repo_config())
+    with pytest.raises(PatchRejected, match="compare alla riga 1"):
+        apply_edits(ws, [Edit("score.py", "def score(base, hints):\n    return  base\n", "x")], repo_config())

@@ -41,6 +41,9 @@ class ModelEntry:
     max_output_tokens: int
     prices: tuple[Price, ...]
     reasoning_effort: Optional[str] = None
+    # Moltiplicatore per il costo dichiarato dal provider (es. 1.055 per la commissione OpenRouter), cosi'
+    # il consuntivo resta confrontabile con i prezzi del catalogo che la includono gia'.
+    provider_cost_markup: float = 1.0
 
     def price_on(self, day: date) -> Optional[Price]:
         for price in self.prices:
@@ -75,6 +78,7 @@ def load_catalog(config_dir: Path | str) -> Catalog:
                 enabled=bool(item.get("enabled", False)), access_verified=bool(item.get("access_verified", False)),
                 max_input_tokens=int(item["max_input_tokens"]), max_output_tokens=int(item["max_output_tokens"]),
                 prices=prices, reasoning_effort=item.get("reasoning_effort"),
+                provider_cost_markup=float(item.get("provider_cost_markup", 1.0)),
             )
         return Catalog(version=str(raw["version"]), models=models)
     except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError, ValueError) as exc:

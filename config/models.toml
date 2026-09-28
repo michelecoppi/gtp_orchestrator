@@ -80,6 +80,7 @@ prices = [
 [[models]]
 key = "gpt-6-luna@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/openai/gpt-6-luna"
 enabled = true
 access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
@@ -90,6 +91,7 @@ prices = [{ from = "2026-01-01", input = 0.1055, output = 0.5275 }]
 [[models]]
 key = "gpt-6-sol@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/openai/gpt-6-sol"
 enabled = true
 access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
@@ -100,6 +102,7 @@ prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
 [[models]]
 key = "gpt-6-astra@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/openai/gpt-6-astra"
 enabled = false          # escalation eccezionale, disabilitata
 access_verified = false
@@ -110,6 +113,7 @@ prices = [{ from = "2026-01-01", input = 10.55, output = 52.75 }]
 [[models]]
 key = "claude-sonnet-5@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/anthropic/claude-sonnet-5"
 enabled = true
 access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
@@ -120,6 +124,7 @@ prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
 [[models]]
 key = "claude-opus-5-5@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/anthropic/claude-opus-5.5"
 enabled = true
 access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
@@ -130,6 +135,7 @@ prices = [{ from = "2026-01-01", input = 4.22, output = 21.10 }]
 [[models]]
 key = "gemini-3.8-flash@openrouter"
 provider = "openrouter"
+provider_cost_markup = 1.055
 litellm_model = "openrouter/google/gemini-3.8-flash"
 # Ragiona prima di rispondere e i token di ragionamento contano nell'output: senza limite il JSON del triage
 # veniva troncato (evaluation del 2026-09-28).

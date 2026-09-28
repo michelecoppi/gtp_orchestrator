@@ -43,6 +43,8 @@ class LLMResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     raw: dict = field(default_factory=dict)
+    # Costo dichiarato dal provider per questa chiamata (OpenRouter `usage.cost`), se disponibile.
+    provider_cost_usd: Optional[float] = None
 
 
 class LLMClient(Protocol):

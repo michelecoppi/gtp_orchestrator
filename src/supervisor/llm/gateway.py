@@ -13,6 +13,7 @@ Se lo stato non risponde non parte nessuna chiamata: si prosegue solo con i cont
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -166,5 +167,12 @@ class LLMGateway:
             note = ""
         else:
             actual, note = check.amount_micros, "usage assente: addebitata l'intera prenotazione"
+        if response.provider_cost_usd is not None:
+            # Si contabilizza il maggiore fra la stima dai token e il costo dichiarato dal provider: i token di
+            # ragionamento o supplementi non visibili non devono far sottostimare la spesa.
+            declared = math.ceil(response.provider_cost_usd * 1_000_000 * check.model.provider_cost_markup)
+            if declared > actual:
+                note = (note + "; " if note else "") + f"costo dichiarato dal provider maggiore della stima ({actual} micro)"
+                actual = declared
         self.ledger.settle(call_id, actual, now, response.input_tokens, response.output_tokens, note)
         return CallResult(response, call_id, actual, reservation.warning)

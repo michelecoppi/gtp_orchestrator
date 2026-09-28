@@ -57,7 +57,8 @@ def test_triage_eval_con_modello_finto(tmp_path):
 
 
 def test_report_engineering():
-    cases = [Case("a", 1, 2, "f", f2p=["x"]), Case("b", 3, 4, "g", f2p=["y", "z"])]
+    cases = [Case("a", 1, 2, "f", f2p=["x"], fix_files=2, fix_lines=10),
+             Case("b", 3, 4, "g", f2p=["y", "z"], fix_files=7, fix_lines=300, in_scope=False)]
     results = [
         {"case": "a", "model": "m1", "repeat": 1, "status": "patch_ready", "resolved": True, "cost_usd": 0.1,
          "duration_s": 100, "lines": 10, "p2p_broken": 0, "error": ""},
@@ -69,5 +70,8 @@ def test_report_engineering():
     summary = summarize(results)
     assert summary["m1"]["resolved"] == 1 and round(summary["m1"]["cost"], 2) == 0.3
     text = report(results, cases)
-    assert "| m1 | 2 | 1 (50%) | 2 | 1 |" in text and "| a (PR #1) | 1 | ✅ | ❌ |" in text
+    in_scope, everything = text.split("## Tutti i casi")
+    assert "| m1 | 1 | 1 (100%) | 1 | 0 |" in in_scope  # il caso fuori scopo non conta nel punteggio
+    assert "| m1 | 2 | 1 (50%) | 2 | 1 |" in everything
+    assert "| a (PR #1) | 2 file, 10 righe | 1 | ✅ | ❌ |" in text and "(fuori scopo)" in text
     assert "nessuna patch valida" in text

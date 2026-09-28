@@ -3,7 +3,7 @@
   "id": "channel-promo-telegram",
   "pr": 217,
   "issue": 216,
-  "fix_sha": "7bc43cf5a241d0b5c4ae70949937bf400f84a1dc",
+  "fix_sha": "7bc43cf5a241",
   "base_sha": "752b8ec6889c051354d2697a57efd8959fabeff8",
   "hidden_tests": [
    "tests/test_acquisition_channel.py"
@@ -28,13 +28,16 @@
   "issue_title": "Aggiungere telegram_channel alle sorgenti di campagna",
   "issue_body": "## Obiettivo\nAttribuire correttamente le visite che arrivano dal canale Telegram promo gestito dal Promo Studio (`michelecoppi/promo_studio`).\n\n## Ambito\n- I post del canale linkano `https://t.me/<bot>?start=src_telegram_channel`. Oggi `telegram_channel` non è in `CAMPAIGN_SOURCES` (`services/product_analytics.py`), quindi quegli arrivi vengono contati come `other`.\n- Aggiungere `telegram_channel` a `CAMPAIGN_SOURCES`, coprirlo nei test del canale di acquisizione e aggiornare l'elenco in `docs/product-analytics.md`.\n- Nessun cambiamento al prefisso `src_`, a `firestore.rules`, ai moduli `services/` usati dal Promo Studio o ai dati dei giocatori.\n\n## Criteri di completamento\n- [ ] `/start src_telegram_channel` registra `acquisition_channel = telegram_channel`.\n- [ ] Test mirati e `python -m tools.dev check` superati.\n- [ ] `docs/product-analytics.md` aggiornato.\n\n## Dipendenze\nNessuna. Richiesta del Promo Studio (vedi anche #157).\n",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 3,
+  "fix_lines": 5,
+  "in_scope": true
  },
  {
   "id": "experiment-denominators",
   "pr": 213,
   "issue": 211,
-  "fix_sha": "94f9dd1d765153e331550517a7b9bb06e4a35060",
+  "fix_sha": "94f9dd1d7651",
   "base_sha": "e1fc59c15d869dde3ad8678e0691c8c3a7fca5eb",
   "hidden_tests": [
    "tests/test_experiment_report.py"
@@ -60,13 +63,16 @@
   "issue_title": "[Bug] Esperimenti: evitare metriche con denominatore precedente all'esposizione",
   "issue_body": "## Problema\n`services/experiment_report.py::query` conta tutti gli eventi metrica solo quando `e.timestamp >= x.first_exposure`. Per `miniapp_activation_rate` usa `miniapp_opened` come numeratore e `bot_started` come denominatore. Un esperimento assegnato al confine del trattamento nella Mini App espone un utente dopo il suo `/start`, quindi `bot_started` cade fuori dalla finestra: il report restituisce `denominator = 0` e `insufficient_data` anche se l'utente era già avviato. Il preflight in `services/experiment_report.py` controlla solo che la query sia eseguibile, non che il denominatore sia temporalmente compatibile con l'esposizione. La definizione di metrica globale in `services/product_analytics_query.py` è corretta per la dashboard aggregata ma non necessariamente per un report di coorte post-esposizione.\n\n## Ambito\n- Definire quali metriche del registro sono valide per un report post-esposizione e per quale punto di assegnazione; rifiutare quelle incoerenti all'avvio oppure usare un denominatore di coorte appropriato, documentando la scelta.\n- Verificare anche gli altri denominatori di `_METRIC_EVENTS` rispetto alla sequenza reale degli eventi, senza cambiare le definizioni globali della dashboard per effetto collaterale.\n- Aggiungere test con timeline esplicita `bot_started` → `experiment_assigned` → `miniapp_opened` e per una metrica valida.\n\n## Criteri di completamento\n- [ ] Un operatore non può avviare un esperimento il cui report produce sistematicamente denominatore zero per la posizione dell'esposizione.\n- [ ] Il report o il rifiuto del piano spiega chiaramente la metrica e la finestra usata.\n- [ ] Test e `docs/experiments.md` aggiornati; `python -m tools.dev check` verde.\n\nRelazione soft: #172 userà il framework per il primo esperimento reale; questa correzione aiuta la scelta della metrica, senza essere un blocco tecnico per metriche già valide.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 3,
+  "fix_lines": 75,
+  "in_scope": true
  },
  {
   "id": "miniapp-payload-validation",
   "pr": 212,
   "issue": 210,
-  "fix_sha": "e1fc59c15d869dde3ad8678e0691c8c3a7fca5eb",
+  "fix_sha": "e1fc59c15d86",
   "base_sha": "71a04ca4c2ae55eb85fc76d6cfcd026637c45684",
   "hidden_tests": [
    "tests/test_miniapp_payload_validation.py",
@@ -168,13 +174,16 @@
   "issue_title": "[Bug] Mini App API: validare tipi e dimensioni dei payload prima delle azioni",
   "issue_body": "## Problema\nLe route in `apps/api/miniapp.py` ricevono `payload: dict` ma alcuni campi vengono usati senza validare il tipo. Su `main` `71a04ca`, `webapp_guess` esegue `(payload.get(\"answer\") or \"\").strip()`: con `{\"answer\":[\"foo\"]}` o `{\"answer\":123}` si ottiene `AttributeError` (riprodotto chiamando la route con utente autenticato simulato), quindi una richiesta JSON malformata diventa 500. Anche `webapp_report` usa `.strip()` sul messaggio; `_webapp_user` passa `initData` a `parse_qsl` senza verificarne il tipo. La risposta Daily non ha un limite esplicito alla lunghezza di `answer` prima di arrivare alle regole di gioco.\n\n## Ambito\n- Validare schema, tipi e limiti dei campi delle route Mini App, con particolare attenzione a `initData`, `guess`/archivio, `support/report` e altri `.strip()` o valori passati ai servizi.\n- Restituire un 4xx coerente per input malformati prima di mutazioni o invii a Telegram. Conservare la compatibilità con i payload validi e i campi legacy documentati.\n- Aggiungere test API con liste, numeri, oggetti, stringhe vuote o troppo lunghe e verificare che un tentativo non venga consumato per un input rifiutato.\n\n## Criteri di completamento\n- [ ] I payload malformati non producono 500 né eccezioni non gestite.\n- [ ] Le richieste Daily/Archive non consumano tentativi quando la validazione fallisce.\n- [ ] Test di regressione per i casi indicati e `python -m tools.dev check` verde.\n- [ ] Aggiornare `docs/miniapp.md` se il contratto API cambia.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 7,
+  "fix_lines": 215,
+  "in_scope": false
  },
  {
   "id": "webapp-no-sourcemaps",
   "pr": 196,
   "issue": 181,
-  "fix_sha": "4a90c584af2856e5c961f654709c3eb61db27fd9",
+  "fix_sha": "4a90c584af28",
   "base_sha": "5ff0a8070ab46efcb61a69cd954c204847765985",
   "hidden_tests": [
    "tests/test_webapp_serving.py"
@@ -202,13 +211,16 @@
   "issue_title": "Mini App: source map non pubbliche (sourcemap \"hidden\" e niente .map servite)",
   "issue_body": "## Problema\n`vite.config.ts` ha `sourcemap: true` e `/app/assets/*` serve anche i `.map` (`apps/api/static.py`, media type `application/json`). Chiunque può ricostruire il sorgente TypeScript completo (~830 KB). Non ci sono segreti, ma espone inutilmente il codice.\n\n## Proposta\n- `build.sourcemap: \"hidden\"`: le map si generano (utili per decodificare stack trace) ma i bundle non contengono `//# sourceMappingURL`.\n- `apps/api/static.py` risponde 404 ai `.map`; valutare di escluderli anche dall'immagine Docker.\n\n## Completamento\n- [ ] Build senza `sourceMappingURL` nei bundle.\n- [ ] Richiesta a `/app/assets/*.map` → 404, con test.\n- [ ] Doc sicurezza/deploy aggiornata se cambia cosa viene pubblicato.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 6,
+  "fix_lines": 47,
+  "in_scope": false
  },
  {
   "id": "webapp-font-woff2",
   "pr": 195,
   "issue": 186,
-  "fix_sha": "5ff0a8070ab46efcb61a69cd954c204847765985",
+  "fix_sha": "5ff0a8070ab4",
   "base_sha": "5e6f3c23bac56a8202750299769b599c880f5a69",
   "hidden_tests": [
    "tests/test_webapp_serving.py"
@@ -234,13 +246,16 @@
   "issue_title": "Mini App: font in WOFF2 con font-display: swap",
   "issue_body": "## Problema\n`BarlowCondensed-SemiBold.ttf` pesa 108 KB; in WOFF2 scende a circa 40 KB.\n\n## Proposta\nConvertire i font in `webapp/src/assets/fonts/` in WOFF2 (mantenendo la licenza), aggiornare le `@font-face` e aggiungere `font-display: swap`.\n\n## Completamento\n- [ ] Font WOFF2 al posto dei TTF, licenze/NOTICE invariati.\n- [ ] `font-display: swap` su tutte le `@font-face`.\n- [ ] Peso prima/dopo riportato nella PR.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 6,
+  "fix_lines": 45,
+  "in_scope": false
  },
  {
   "id": "experiment-report-variants",
   "pr": 176,
   "issue": 171,
-  "fix_sha": "9a9ec17f4f6af57a3a32397d6d1d12aeb5bde17b",
+  "fix_sha": "9a9ec17f4f6a",
   "base_sha": "8e03a0aeaee71fb67fa1c04906622ae593f9ce53",
   "hidden_tests": [
    "tests/test_experiment_report.py",
@@ -278,13 +293,16 @@
   "issue_title": "Esperimenti: report per variante e preflight della metrica",
   "issue_body": "## Obiettivo\n\nPermettere a un operatore di leggere un risultato per variante senza costruire a mano una nuova query PostHog per ogni esperimento. La PR #169 registra le esposizioni e richiede una metrica esistente, ma il confronto control/treatment e la verifica effettiva della query restano manuali.\n\n## Ambito\n\n- Calcolare le metriche ammesse del registro per utenti esposti a `control` e `treatment`, usando identità pseudonime, finestra temporale dell'esperimento e definizioni già presenti in #29.\n- Mostrare numeratore/denominatore o campione, valore per variante, intervallo, eventuali dati insufficienti ed errori della query. Non attribuire significatività statistica senza un metodo esplicito.\n- Prima dell'avvio, verificare che la metrica scelta sia interrogabile nel progetto PostHog configurato, oltre alla presenza delle credenziali.\n- Lettura sola lettura: nessun evento client o dato Telegram grezzo nel report.\n\n## Criteri di completamento\n\n- [ ] Un esperimento con esposizioni e successi sintetici produce valori separati per variante, senza contare due volte esposizioni ripetute dello stesso utente.\n- [ ] Metrica non interrogabile, risposta malformata e campione vuoto producono stati espliciti; l'avvio rifiuta una metrica non interrogabile.\n- [ ] Query e calcoli seguono le definizioni primarie in `docs/product-analytics.md`; test con risposte PostHog simulate coprono tassi e medie.\n- [ ] Procedura operativa e `python -m tools.dev check` aggiornati e superati.\n\n## Dipendenze\n\nHard blocker: #52 / PR #169 (evento di esposizione e registro su `main`).\n",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 7,
+  "fix_lines": 283,
+  "in_scope": false
  },
  {
   "id": "experiment-cache-early-stop",
   "pr": 173,
   "issue": 170,
-  "fix_sha": "58e5833377a757087e64c743ab81f1c5a47d19a1",
+  "fix_sha": "58e5833377a7",
   "base_sha": "3da7de9f086304e975b826f5a867e431e334eaba",
   "hidden_tests": [
    "tests/test_experiments.py",
@@ -307,13 +325,16 @@
   "issue_title": "Esperimenti: stop anticipato e cache delle assegnazioni runtime",
   "issue_body": "## Obiettivo\n\nRendere sicura e veloce l'assegnazione di un esperimento quando viene collegata a un percorso usato spesso. La PR #169 introduce `assign()`, che oggi legge l'intero documento Firestore a ogni chiamata, e non offre uno stop anticipato dedicato.\n\n## Ambito\n\n- Cache per replica con TTL breve e lettura singola anche sotto richieste concorrenti; errore di lettura = comportamento di controllo.\n- Azione operatore `stop` per interrompere subito un esperimento prima della scadenza, con motivo e audit del cambiamento, senza cancellare piano o dati già raccolti.\n- La scadenza temporale e lo stop prevalgono sempre su una cache ancora valida; documentare il ritardo massimo di propagazione tra repliche.\n- Nessun trattamento concreto o dashboard risultati in questa issue.\n\n## Criteri di completamento\n\n- [x] Un'assegnazione ripetuta non provoca una lettura Firestore per richiesta; numero di letture e latenza sono verificati con test.\n- [x] Uno stop anticipato impedisce nuove assegnazioni entro il limite di propagazione documentato e resta efficace dopo riavvio o temporanea indisponibilità di Firestore.\n- [x] CLI e documentazione spiegano avvio, stop, scadenza e comportamento su errore.\n- [x] Test unitari, test emulator su transizioni concorrenti e `python -m tools.dev check` passano.\n\n## Dipendenze\n\nHard blocker: #52 / PR #169 (il registro e l'assegnazione devono essere presenti su `main`).\n",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 6,
+  "fix_lines": 231,
+  "in_scope": false
  },
  {
   "id": "acquisition-channel",
   "pr": 140,
   "issue": 137,
-  "fix_sha": "958ed941f45fbd8826f1cf6dac140da45f40041b",
+  "fix_sha": "958ed941f45f",
   "base_sha": "52f9c833b7407a02e7b3f9fabf98d7c8ac858168",
   "hidden_tests": [
    "tests/test_acquisition_channel.py"
@@ -336,13 +357,16 @@
   "issue_title": "[Feature] Canale di acquisizione sul link /start per la campagna di lancio",
   "issue_body": "### Obiettivo / Goal\n\nLa campagna di lancio (obiettivo: da ~2 a 1000 giocatori attivi al giorno) usa più canali: TikTok, Instagram, YouTube, Reddit, X, gruppi Telegram, creator, directory. Oggi `bot_started` non dice da dove arriva un nuovo utente, quindi non si può capire quale canale rende.\n\n### Ambito / Scope\n\n- Link tracciabili `https://t.me/guess_the_player_from_path_bot?start=src_<canale>` (es. `src_tiktok`).\n- `bot_started` riceve la proprietà `acquisition_channel`, da un elenco chiuso: `direct`, `referral`, `duel`, `league`, i canali `src_*` noti e `other` per qualsiasi valore sconosciuto (cardinalità limitata, nessun dato personale).\n- Il comportamento di `/start` per `ref_`, `duel_` e leghe non cambia; `src_*` mostra il normale benvenuto.\n- Documentazione in `docs/product-analytics.md` e README.\n\n### Criteri di completamento / Completion criteria\n\n- [ ] `acquisition_channel` validato in `services/product_analytics.py` e ammesso solo su `bot_started`\n- [ ] Test per ogni tipo di argomento, incluso un valore sconosciuto → `other`\n- [ ] Documentazione aggiornata con l'elenco dei link di campagna\n- [ ] `python -m tools.dev check` verde\n\n### Dipendenze / Dependencies\n\nNessuna.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 5,
+  "fix_lines": 119,
+  "in_scope": true
  },
  {
   "id": "admin-daily-lock",
   "pr": 100,
   "issue": 34,
-  "fix_sha": "5cd7e8a8260a8b97c79b918bf69ee5f8df6018d8",
+  "fix_sha": "5cd7e8a8260a",
   "base_sha": "75ff6c4241cc524f45f7414b14627be3bba820ea",
   "hidden_tests": [
    "tests/test_content_admin.py"
@@ -392,13 +416,16 @@
   "issue_title": "Admin: gestione Daily Challenges",
   "issue_body": "Sub-issue di #12.\n\n## Obiettivo\nPermettere override e gestione del daily challenge dall'interfaccia admin.\n\n## Ambito\nVisualizzazione, modifica e lock/unlock del daily challenge corrente e futuro.\n\n## Criteri di completamento\nLe azioni principali sul daily non richiedono più script o modifiche JSON manuali.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 3,
+  "fix_lines": 119,
+  "in_scope": true
  },
  {
   "id": "admin-overview-metrics",
   "pr": 99,
   "issue": 33,
-  "fix_sha": "75ff6c4241cc524f45f7414b14627be3bba820ea",
+  "fix_sha": "75ff6c4241cc",
   "base_sha": "71037008fadae287a7826dfa2d9466f78d8a11f7",
   "hidden_tests": [
    "tests/test_admin_overview_emulator.py"
@@ -408,13 +435,16 @@
   "issue_title": "Admin: dashboard overview e metriche live",
   "issue_body": "Sub-issue di #12.\n\n## Obiettivo\nDare visibilità immediata sullo stato del prodotto senza query manuali.\n\n## Ambito\nUtenti attivi, completion rate, tentativi medi, hint usati, player del giorno, pool disponibile, job falliti, errori recenti.\n\n## Criteri di completamento\nLe metriche sono visibili nell'admin, aggiornate senza intervento manuale.",
   "usable": false,
-  "note": "nessun test FAIL_TO_PASS (es. test saltati senza emulatore)"
+  "note": "nessun test FAIL_TO_PASS (es. test saltati senza emulatore)",
+  "fix_files": 4,
+  "fix_lines": 121,
+  "in_scope": true
  },
  {
   "id": "admin-review-wording",
   "pr": 92,
   "issue": 86,
-  "fix_sha": "44cbe63a83ce2a0d0c4f9e4a30dfa92dfaed7448",
+  "fix_sha": "44cbe63a83ce",
   "base_sha": "49bf674670eb9dc690218f6193015ef76388152c",
   "hidden_tests": [
    "tests/test_admin_player_review.py"
@@ -450,6 +480,9 @@
   "issue_title": "Admin: correggere il wording fuorviante della Candidate Review Queue",
   "issue_body": "## Obiettivo\nCorreggere il testo della Candidate Review Queue che lascia intendere che anche il **merge** scriva direttamente su `data/players.json`, mentre il comportamento reale distingue merge verso un player esistente e approval/persistenza nel dataset di produzione.\n\n## Contesto\nFinding emerso durante l'audit documentale di #23.\n\nLa UI deve descrivere fedelmente il comportamento reale di `CandidateReviewService` senza modificare la logica di review/approval/merge.\n\n## Ambito\n- audit dei testi/caption/help della Candidate Review Queue;\n- correggere esclusivamente wording fuorviante relativo a merge/approve e scrittura del dataset;\n- mantenere terminologia coerente con `docs/player-data-pipeline.md` e con il servizio reale;\n- aggiornare eventuali test snapshot/testuali pertinenti.\n\n## Criteri di completamento\n- nessun testo Admin afferma che `merge_candidate` scrive `data/players.json` se non è vero;\n- distinzione tra **merge verso player esistente** e **approve/persistenza in produzione** chiara;\n- nessuna modifica al comportamento del servizio Candidate Review;\n- test pertinenti verdi.\n\n## Non obiettivi\n- refactor Admin;\n- modifiche alla FSM Candidate;\n- modifiche a `players.json`;\n- nuove feature della Review Queue.\n\nRelated: #12, #35.\n\nSize consigliata: 1.",
   "usable": true,
-  "note": ""
+  "note": "",
+  "fix_files": 2,
+  "fix_lines": 28,
+  "in_scope": true
  }
 ]

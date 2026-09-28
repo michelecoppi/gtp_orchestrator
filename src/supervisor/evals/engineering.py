@@ -49,6 +49,10 @@ class Case:
     issue_body: str = ""
     usable: bool = True
     note: str = ""
+    # Dimensione della fix reale: se supera i limiti del worker il caso e' "fuori scopo" (si misura a parte).
+    fix_files: int = 0
+    fix_lines: int = 0
+    in_scope: bool = True
 
 
 def load_cases(cases_file: Path, lock_file: Optional[Path] = None) -> list[Case]:
@@ -125,6 +129,20 @@ def passing_tests(runner: CheckRunner, workspace: Path, paths: list[str], timeou
 
 
 # --- preparazione ---------------------------------------------------------------------------------
+def with_scope(case: Case, repo_dir: Path, repo: RepoEngineering) -> Case:
+    """Righe e file della fix reale (esclusi i file vietati al worker, che non potrebbe comunque toccare)."""
+    base = case.base_sha or git(repo_dir, "rev-parse", f"{case.fix_sha}^").strip()
+    files = lines = 0
+    for row in git(repo_dir, "diff", "--numstat", base, case.fix_sha).splitlines():
+        added, deleted, path = row.split("\t", 2)
+        if repo.path_problem(path):
+            continue
+        files += 1
+        lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
+    in_scope = files <= repo.max_files_changed and lines <= repo.max_lines_changed
+    return Case(**{**asdict(case), "fix_files": files, "fix_lines": lines, "in_scope": in_scope})
+
+
 def prepare_case(case: Case, repo_dir: Path, repo: RepoEngineering, runner_for, fetch_issue) -> Case:
     fix = git(repo_dir, "rev-parse", case.fix_sha).strip()
     parents = git(repo_dir, "rev-list", "--parents", "-n", "1", fix).split()[1:]
@@ -151,7 +169,8 @@ def prepare_case(case: Case, repo_dir: Path, repo: RepoEngineering, runner_for, 
         after = passing_tests(runner_for(fix_image), at_fix, hidden)
     f2p, p2p = sorted(after - before), sorted(after & before)
     note = "" if f2p else "nessun test FAIL_TO_PASS (es. test saltati senza emulatore)"
-    return Case(**{**asdict(result), "f2p": f2p, "p2p": p2p, "usable": bool(f2p), "note": note})
+    return with_scope(Case(**{**asdict(result), "f2p": f2p, "p2p": p2p, "usable": bool(f2p), "note": note}),
+                      repo_dir, repo)
 
 
 # --- esecuzione ----------------------------------------------------------------------------------
@@ -221,11 +240,8 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return by_model
 
 
-def report(results: list[dict[str, Any]], cases: list[Case]) -> str:
-    lines = ["# Evaluation engineering", "",
-             "Punteggio deterministico: FAIL_TO_PASS e PASS_TO_PASS dei test della fix reale, applicati dopo la "
-             "patch del candidato. Il repository e' pubblico: possibile contaminazione dei modelli.", "",
-             "| Modello | Run | Risolti | Patch prodotte | Test gia' verdi rotti | Costo totale USD | Costo medio | "
+def _summary_table(results: list[dict[str, Any]]) -> list[str]:
+    lines = ["| Modello | Run | Risolti | Patch prodotte | Test gia' verdi rotti | Costo totale USD | Costo medio | "
              "Tempo medio s | Righe medie |",
              "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for model, m in sorted(summarize(results).items()):
@@ -233,16 +249,29 @@ def report(results: list[dict[str, Any]], cases: list[Case]) -> str:
         lines.append(f"| {model} | {m['runs']} | {m['resolved']} ({m['resolved'] / runs:.0%}) | {m['patch_ready']} | "
                      f"{m['p2p_broken']} | {m['cost']:.4f} | {m['cost'] / runs:.4f} | {m['duration'] / runs:.0f} | "
                      f"{m['lines'] / runs:.0f} |")
+    return lines
+
+
+def report(results: list[dict[str, Any]], cases: list[Case]) -> str:
+    in_scope = {c.id for c in cases if c.in_scope}
+    lines = ["# Evaluation engineering", "",
+             "Punteggio deterministico: FAIL_TO_PASS e PASS_TO_PASS dei test della fix reale, applicati dopo la "
+             "patch del candidato. Il repository e' pubblico: possibile contaminazione dei modelli.", "",
+             "## Casi nello scopo del worker (fix reale entro i limiti di file e righe)", ""]
+    lines += _summary_table([r for r in results if r["case"] in in_scope])
+    lines += ["", "## Tutti i casi (inclusi quelli la cui fix reale supera i limiti: fallimenti attesi)", ""]
+    lines += _summary_table(results)
     models = sorted({r["model"] for r in results})
-    lines += ["", "## Per caso", "", "| Caso | FAIL_TO_PASS | " + " | ".join(models) + " |",
-              "|---|---:|" + "---|" * len(models)]
+    lines += ["", "## Per caso", "", "| Caso | Fix reale | FAIL_TO_PASS | " + " | ".join(models) + " |",
+              "|---|---|---:|" + "---|" * len(models)]
     for case in cases:
         cells = []
         for model in models:
             runs = [r for r in results if r["case"] == case.id and r["model"] == model]
             cells.append(" ".join(("✅" if r["resolved"] else ("🟡" if r["status"] == "patch_ready" else "❌"))
                                   for r in runs) or "—")
-        lines.append(f"| {case.id} (PR #{case.pr}) | {len(case.f2p)} | " + " | ".join(cells) + " |")
+        size = f"{case.fix_files} file, {case.fix_lines} righe" + ("" if case.in_scope else " (fuori scopo)")
+        lines.append(f"| {case.id} (PR #{case.pr}) | {size} | {len(case.f2p)} | " + " | ".join(cells) + " |")
     lines += ["", "✅ risolto · 🟡 patch prodotta ma test nascosti non superati · ❌ nessuna patch valida", ""]
     failures = [r for r in results if r["error"]]
     if failures:

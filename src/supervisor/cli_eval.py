@@ -21,7 +21,7 @@ from supervisor.core.config import ROOT, ConfigError, Settings
 from supervisor.core.policy import load_policy
 from supervisor.engineering.config import load_engineering
 from supervisor.engineering.runner import DockerRunner
-from supervisor.evals.engineering import load_cases, prepare_case, report, run_case, save_lock
+from supervisor.evals.engineering import load_cases, prepare_case, report, run_case, save_lock, with_scope
 from supervisor.evals.triage import load_triage_cases, run_triage_case, triage_report
 from supervisor.llm.catalog import cost_micros, load_catalog, load_routing
 from supervisor.llm.gateway import LLMBlocked, LLMGateway
@@ -54,6 +54,12 @@ def cmd_prepare(args, settings: Settings) -> int:
         return issue.get("title") or "", issue.get("body") or ""
 
     cases = load_cases(ENG_CASES, ENG_LOCK)
+    if args.stats_only:  # solo dimensione della fix reale, senza Docker ne' rete
+        cases = [with_scope(c, Path(args.repo_dir), repo) for c in cases]
+        save_lock(cases, ENG_LOCK)
+        for c in cases:
+            print(f"{c.id}: {c.fix_files} file, {c.fix_lines} righe — {'nello scopo' if c.in_scope else 'fuori scopo'}")
+        return 0
     wanted = set(args.cases.split(",")) if args.cases else None
     prepared = []
     for case in cases:
@@ -157,6 +163,7 @@ def register(sub) -> None:
     prep = ev.add_parser("prepare", help="calcola FAIL_TO_PASS/PASS_TO_PASS dei casi (Docker, nessun costo AI)")
     prep.add_argument("--repo-dir", required=True, help="clone completo del repository del gioco")
     prep.add_argument("--cases", help="solo questi id, separati da virgola")
+    prep.add_argument("--stats-only", action="store_true", help="aggiorna solo la dimensione delle fix reali")
     prep.set_defaults(fn=cmd_prepare)
     run = ev.add_parser("run", help="esegue i modelli candidati con il budget [evaluation]")
     run.add_argument("--suite", choices=("engineering", "triage"), required=True)

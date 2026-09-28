@@ -34,6 +34,9 @@ class LiteLLMClient:
             "num_retries": 0,
             "max_retries": 0,
         }
+        if request.model.startswith("openrouter/"):
+            # Chiede a OpenRouter il costo effettivo della chiamata (usage accounting).
+            kwargs["extra_body"] = {"usage": {"include": True}}
         if request.reasoning_effort:
             kwargs["reasoning_effort"] = request.reasoning_effort
         if request.json_schema:
@@ -50,10 +53,14 @@ class LiteLLMClient:
             raise LLMOutcomeUnknown(message) from exc
         usage = getattr(response, "usage", None)
         choice = response.choices[0]
+        cost = getattr(usage, "cost", None)
+        if cost is None and isinstance(usage, dict):
+            cost = usage.get("cost")
         return LLMResponse(
             text=(choice.message.content or ""),
             provider=request.model.split("/", 1)[0],
             model=getattr(response, "model", request.model) or request.model,
             input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
             output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+            provider_cost_usd=float(cost) if isinstance(cost, (int, float)) and cost >= 0 else None,
         )
