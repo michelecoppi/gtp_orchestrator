@@ -215,8 +215,18 @@ def cmd_triage(args, settings: Settings) -> int:
 
 def cmd_budget(args, settings: Settings) -> int:
     store = open_store(settings)
-    ledger = BudgetLedger(store, load_budget(settings.config_dir).limits)
+    budget = load_budget(settings.config_dir)
+    limits = budget.evaluation if args.namespace == "eval" and budget.evaluation else budget.limits
+    ledger = BudgetLedger(store, limits, namespace=args.namespace)
     now = _now(args)
+    if args.release_open:
+        if not args.reason:
+            print("--release-open richiede --reason con l'evidenza (per esempio il run con i rifiuti 402)")
+            return 2
+        for usage in ledger.open_reservations():
+            ledger.release(usage["call_id"], now, f"riconciliata a mano: {args.reason}")
+            print(f"rilasciata {usage['call_id']} ({micros_to_usd(usage['reserved_micros']):.4f} USD)")
+        return 0
     if args.reconcile:
         if args.release:
             usage = ledger.release(args.reconcile, now, "riconciliata a mano: non addebitata")
@@ -376,6 +386,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("budget", help="spesa AI e riconciliazione")
     p.add_argument("--reconcile", metavar="CALL_ID", help="chiude una chiamata dall'esito incerto")
+    p.add_argument("--namespace", default="", choices=("", "eval"), help="budget operativo (default) o evaluation")
+    p.add_argument("--release-open", action="store_true",
+                   help="rilascia tutte le prenotazioni aperte del namespace (solo se verificate come non addebitate)")
+    p.add_argument("--reason", help="evidenza della riconciliazione")
     group = p.add_mutually_exclusive_group()
     group.add_argument("--actual", type=float, help="costo reale in USD visto sulla dashboard del provider")
     group.add_argument("--release", action="store_true", help="la chiamata non e' stata addebitata")

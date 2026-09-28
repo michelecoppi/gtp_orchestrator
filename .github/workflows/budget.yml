@@ -1,0 +1,52 @@
+name: Budget
+
+# Consultazione e riconciliazione manuale del budget AI (docs/adr/0003). Serve quando una chiamata e' finita
+# con esito incerto e si e' verificato (log del run, dashboard del provider) se e' stata addebitata o no.
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: "vuoto = budget operativo, eval = evaluation"
+        type: choice
+        options: ["", "eval"]
+        default: ""
+      action:
+        description: "show = riepilogo; release-open = rilascia tutte le prenotazioni aperte (non addebitate)"
+        type: choice
+        options: [show, release-open]
+        default: show
+      reason:
+        description: "Evidenza della riconciliazione (obbligatoria per release-open)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  budget:
+    if: github.repository == 'michelecoppi/gtp_orchestrator'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUP_STORE: firestore
+      SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt -e .
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
+          service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      - name: Budget
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          if [ "${{ inputs.action }}" = "release-open" ]; then
+            python -m supervisor budget --namespace "$NAMESPACE" --release-open --reason "$REASON"
+          fi
+          python -m supervisor budget --namespace "$NAMESPACE" | tee -a "$GITHUB_STEP_SUMMARY"

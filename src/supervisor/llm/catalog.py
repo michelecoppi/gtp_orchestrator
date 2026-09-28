@@ -40,6 +40,7 @@ class ModelEntry:
     max_input_tokens: int
     max_output_tokens: int
     prices: tuple[Price, ...]
+    reasoning_effort: Optional[str] = None
 
     def price_on(self, day: date) -> Optional[Price]:
         for price in self.prices:
@@ -73,7 +74,7 @@ def load_catalog(config_dir: Path | str) -> Catalog:
                 key=item["key"], provider=item["provider"], litellm_model=item["litellm_model"],
                 enabled=bool(item.get("enabled", False)), access_verified=bool(item.get("access_verified", False)),
                 max_input_tokens=int(item["max_input_tokens"]), max_output_tokens=int(item["max_output_tokens"]),
-                prices=prices,
+                prices=prices, reasoning_effort=item.get("reasoning_effort"),
             )
         return Catalog(version=str(raw["version"]), models=models)
     except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError, ValueError) as exc:

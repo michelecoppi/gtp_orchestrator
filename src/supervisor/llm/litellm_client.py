@@ -12,8 +12,8 @@ from typing import Any
 from supervisor.core.scrub import scrub
 from supervisor.llm.client import LLMOutcomeUnknown, LLMRejected, LLMRequest, LLMResponse
 
-# Rifiuti del provider prima dell'elaborazione: nessun addebito.
-NOT_BILLED_STATUS = {400, 401, 403, 404, 413, 422, 429}
+# Rifiuti del provider prima dell'elaborazione: nessun addebito. 402 = credito insufficiente (OpenRouter).
+NOT_BILLED_STATUS = {400, 401, 402, 403, 404, 413, 422, 429}
 
 
 class LiteLLMClient:
@@ -34,6 +34,8 @@ class LiteLLMClient:
             "num_retries": 0,
             "max_retries": 0,
         }
+        if request.reasoning_effort:
+            kwargs["reasoning_effort"] = request.reasoning_effort
         if request.json_schema:
             kwargs["response_format"] = {"type": "json_schema", "json_schema": {
                 "name": request.task, "schema": request.json_schema, "strict": True}}
@@ -42,7 +44,8 @@ class LiteLLMClient:
         except Exception as exc:
             status = getattr(exc, "status_code", None)
             message = scrub(f"{type(exc).__name__}: {exc}")[:300]
-            if status in NOT_BILLED_STATUS:
+            # OpenRouter puo' incapsulare il codice nel corpo di un APIError generico.
+            if status in NOT_BILLED_STATUS or any(f'"code":{c}' in str(exc) for c in (402, 429)):
                 raise LLMRejected(message) from exc
             raise LLMOutcomeUnknown(message) from exc
         usage = getattr(response, "usage", None)

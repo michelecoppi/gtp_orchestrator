@@ -203,3 +203,37 @@ def test_routing_su_openrouter_con_commissione_nel_prezzo():
     author = catalog.get(routing["engineer_patch"].model).litellm_model.split("/")[1]
     reviewer = catalog.get(routing["engineer_review"].model).litellm_model.split("/")[1]
     assert author != reviewer
+
+
+def test_credito_esaurito_openrouter_e_un_rifiuto_non_addebitato():
+    class ApiError(Exception):
+        status_code = 500
+
+    def completion(**kwargs):
+        raise ApiError('OpenrouterException - {"error":{"message":"exceed your available credits","code":402}}')
+
+    from supervisor.llm.client import LLMRequest
+
+    with pytest.raises(LLMRejected):
+        LiteLLMClient(completion).complete(LLMRequest("openrouter/x", "t", "s", "p", 5))
+
+
+def test_reasoning_effort_dal_catalogo_all_adapter():
+    seen = {}
+
+    class Obj:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    def completion(**kwargs):
+        seen.update(kwargs)
+        return Obj(model="m", usage=Obj(prompt_tokens=1, completion_tokens=1), choices=[Obj(message=Obj(content="{}"))])
+
+    from supervisor.llm.client import LLMRequest
+
+    assert load_catalog("config").get("gemini-3.8-flash@openrouter").reasoning_effort == "low"
+    LiteLLMClient(completion).complete(LLMRequest("openrouter/g", "t", "s", "p", 5, reasoning_effort="low"))
+    assert seen["reasoning_effort"] == "low"
+    seen.clear()
+    LiteLLMClient(completion).complete(LLMRequest("openrouter/g", "t", "s", "p", 5))
+    assert "reasoning_effort" not in seen

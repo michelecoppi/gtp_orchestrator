@@ -131,6 +131,9 @@ prices = [{ from = "2026-01-01", input = 4.22, output = 21.10 }]
 key = "gemini-3.8-flash@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/google/gemini-3.8-flash"
+# Ragiona prima di rispondere e i token di ragionamento contano nell'output: senza limite il JSON del triage
+# veniva troncato (evaluation del 2026-09-28).
+reasoning_effort = "low"
 enabled = true
 access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 150000

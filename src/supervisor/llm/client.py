@@ -31,6 +31,8 @@ class LLMRequest:
     max_output_tokens: int
     json_schema: Optional[dict] = None
     timeout_seconds: float = 60.0
+    # Per i modelli che ragionano prima di rispondere: i token di ragionamento contano nell'output massimo.
+    reasoning_effort: Optional[str] = None
 
 
 @dataclass(frozen=True)

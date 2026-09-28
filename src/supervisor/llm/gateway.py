@@ -148,7 +148,8 @@ class LLMGateway:
             raise LLMBlocked(f"chiamata {call_id} gia' prenotata (stato {reservation.state})", systemic=False)
 
         request = LLMRequest(model=check.model.litellm_model, task=task, system=system, prompt=prompt,
-                             max_output_tokens=max_output_tokens, json_schema=json_schema)
+                             max_output_tokens=max_output_tokens, json_schema=json_schema,
+                             reasoning_effort=check.model.reasoning_effort)
         try:
             response = self.client.complete(request)
         except LLMRejected as exc:
