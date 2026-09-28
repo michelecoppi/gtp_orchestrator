@@ -58,6 +58,8 @@ def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_2
             sections.append(_github_section(report, [e for e in events_24h if e.source == report.source]))
         elif report.kind == "promo":
             sections.append(_promo_section(report))
+        elif report.kind == "posthog":
+            sections.append(_product_section(report))
     if tasks:
         sections.append(_engineering_section(tasks, now))
     if budget is not None:
@@ -157,6 +159,18 @@ def _github_section(report: SourceReport, events: list[Event]) -> Section:
         f"chiuse senza merge {changes[('pull_request', 'closed')]}"
     )
     return Section(f"{facts.get('repo', report.source)} ({report.completeness})", lines)
+
+
+def _product_section(report: SourceReport) -> Section:
+    from supervisor.product.growth import product_lines
+
+    title = f"Prodotto — PostHog ({report.completeness})"
+    if not report.configured:
+        return Section(title, ["Metriche non configurate (SUP_POSTHOG_PERSONAL_API_KEY assente)."])
+    lines = product_lines(report.facts)
+    if report.facts.get("cached"):
+        lines.append(f"Dati raccolti il {report.facts.get('collected_at')} (aggiornati al massimo ogni 20 ore).")
+    return Section(title, lines)
 
 
 def _promo_section(report: SourceReport) -> Section:

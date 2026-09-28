@@ -14,6 +14,7 @@
 | GitHub App `gtp-orchestrator` (ID 5113175), variabile `SUP_GITHUB_APP_ID` | fatto |
 | Secret `SUP_GITHUB_APP_KEY`, `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENROUTER_API_KEY` | **Michele** |
 | `llm smoke` e `access_verified = true` nel catalogo, poi interruttori a `true` | dopo i secret |
+| Secret `SUP_POSTHOG_PERSONAL_API_KEY` (PostHog, sola lettura delle query) per M4 | **Michele** |
 
 ## Setup iniziale (una volta, a cura di Michele)
 
@@ -121,6 +122,23 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
 | `engineer list` mostra `blocked` o `failed` | Il motivo è accanto: patch fuori dai limiti, controlli falliti dopo 2 tentativi, review bloccante, budget. L'artifact `engineer-<task>` del workflow contiene `result.json` e l'eventuale patch. |
 | Il repository resta "occupato" | Un solo task attivo per repository, finché la PR è aperta. Unisci o chiudi la PR per liberarlo. |
 | Emergenza | `SUP_ENGINEER_ENABLED=false` ferma il workflow. La policy `create_branch_or_draft_pr = "deny"` blocca anche l'executor. |
+
+## Prodotto e growth (M4)
+
+- **Metriche**: con `SUP_POSTHOG_PERSONAL_API_KEY` impostata, Observe aggiunge al brief la sezione "Prodotto".
+  Contiene volumi, attivazione per canale, completamento Daily, ritorno a 7 giorni, North Star e referral, ognuno
+  con conteggi e stato della lettura. PostHog si interroga al massimo ogni 20 ore.
+- **Review settimanale**: il workflow *Growth* gira il lunedì alle 08:30, oppure a mano con `dry_run` per la
+  stima del costo. Produce una proposta con i campi della specifica (sez. 11) e la fattibilità calcolata dal
+  codice. Se riguarda la promozione, aggiunge una bozza di brief per Promo con `campaign_id`. Per vedere le
+  bozze: `python -m supervisor growth briefs`.
+- **La chiave PostHog** va creata in PostHog (*Settings → Personal API keys*) con il solo permesso di lettura
+  delle query, sul progetto 275711.
+- **Dati di qualità**: se compare il finding `analytics_data_quality` (per esempio `bot_started` assente), si
+  sistema la raccolta prima di leggere il funnel.
+- **Proposte per gli altri repository**: `docs/proposals/game-campaign-id.md` e
+  `docs/proposals/promo-brief-intake.md`. Si aprono come issue nei rispettivi repository solo dopo averle
+  approvate.
 
 ## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.

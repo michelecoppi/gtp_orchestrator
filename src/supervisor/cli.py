@@ -53,6 +53,15 @@ def build_collectors(sources: Sources, settings: Settings, http: HttpClient,
     if promo_reader is None and settings.game_firestore_project:
         promo_reader = FirestorePostReader(settings.game_firestore_project, sources.promo.collection)
     collectors.append(PromoCollector(sources.promo, promo_reader))
+    try:
+        from supervisor.collectors.posthog import PostHogCollector
+        from supervisor.product.metrics import HogQL, load_product
+
+        product = load_product(settings.config_dir)
+        hogql = HogQL(http if settings.posthog_api_key else RequestsHttp(), product, settings.posthog_api_key)
+        collectors.append(PostHogCollector(product, hogql if settings.posthog_api_key else None))
+    except ConfigError:
+        pass  # senza config/product.toml la sorgente semplicemente non esiste
     return collectors
 
 
@@ -407,9 +416,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     from supervisor.cli_engineer import register
     from supervisor.cli_eval import register as register_eval
+    from supervisor.cli_growth import register as register_growth
 
     register(sub)
     register_eval(sub)
+    register_growth(sub)
     sub.add_parser("doctor", help="verifica configurazione e credenziali").set_defaults(fn=cmd_doctor)
     return parser
 

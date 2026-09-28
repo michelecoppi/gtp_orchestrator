@@ -7,7 +7,7 @@ Supervisore di [Guess the Player from the Path](https://github.com/michelecoppi/
 [Promo Studio](https://github.com/michelecoppi/promo_studio). Osserva sviluppo e promozione, registra fatti
 verificabili, riconosce i problemi con regole deterministiche e manda a Michele un brief quotidiano.
 
-Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0–M3**:
+Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0–M4**:
 - sola lettura sui repository osservati;
 - AI solo per il triage, entro un budget approvato e con prenotazione atomica (spenta finché Michele non la attiva);
 - draft PR solo per le issue che Michele approva con l'etichetta `supervisor:fix`, senza merge automatici;
@@ -50,6 +50,10 @@ flowchart LR
   né segreti, la fa rivedere da un modello di un altro provider e un executor separato (l'unico con permessi di
   scrittura) apre una **draft PR** secondo le regole del gioco. Il supervisore segue poi la CI sullo SHA di
   testa. Nessun merge automatico.
+- **Prodotto e growth** (M4): metriche PostHog in sola lettura con le definizioni del gioco (attivazione,
+  completamento, ritorno, North Star, referral), sempre con denominatore e stato ("sotto soglia", "non
+  disponibile"). Ogni settimana una proposta con fattibilità calcolata dal codice e una bozza di brief per
+  Promo, fatta solo di fatti verificati.
 - **Garanzie**:
   - deduplicazione degli eventi;
   - cursori che non si perdono dopo un crash;
@@ -58,7 +62,7 @@ flowchart LR
   - "non disponibile" al posto di zero.
 
 ## Comandi
-`python -m supervisor observe | report | status | doctor | replay | triage | budget | llm smoke | engineer ...` — vedi [docs/runbook.md](docs/runbook.md).
+`python -m supervisor observe | report | status | doctor | replay | triage | budget | llm smoke | engineer ... | eval ... | growth ...` — vedi [docs/runbook.md](docs/runbook.md).
 
 ## Documenti
 - [Audit M0 delle integrazioni](docs/audit/m0-integrations.md)
@@ -66,12 +70,12 @@ flowchart LR
 - [ADR 0002 — bot condiviso](docs/adr/0002-bot-condiviso.md)
 - [ADR 0003 — budget e gateway AI](docs/adr/0003-budget-e-gateway-ai.md)
 - [ADR 0004 — worker engineering](docs/adr/0004-engineering-worker.md)
+- [ADR 0005 — prodotto e growth](docs/adr/0005-product-growth.md)
 - [Runbook](docs/runbook.md) · [Regole per gli agenti](AGENTS.md)
 
 ## Prossime tranche
 | Fase | Contenuto |
 |---|---|
-| M4 | `campaign_id`/`brief_id`, funnel PostHog, brief strutturati verso Promo |
 | M5–M6 | Confronto provider, runbook operativo completo |
 
 Licenza: PolyForm Noncommercial 1.0.0 (vedi [LICENSE](LICENSE)).

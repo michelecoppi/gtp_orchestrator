@@ -1,0 +1,25 @@
+# Fatti verificati sul gioco utilizzabili nei brief per Promo Studio (specifica, sez. 11: vietato inventare
+# numeri di utenti, premi o funzionalita'). Fonte: README del gioco al commit 7bc43cf (2026-09-28).
+# Aggiornare solo con fonte; i numeri (utenti, percentuali) NON stanno qui: si usano solo quelli calcolati
+# da PostHog sopra la soglia minima.
+
+languages = ["it", "en", "es"]
+channels = ["telegram_channel", "tiktok", "instagram", "youtube", "reddit", "x", "threads", "facebook",
+            "telegram_group", "creator", "producthunt", "directory", "qr"]
+formats = ["who_is", "percent", "ladder", "journeyman", "solution"]
+
+[[facts]]
+text = "Ogni giorno una nuova sfida: indovinare un calciatore dal percorso delle squadre in cui ha giocato."
+source = "README del gioco, introduzione"
+
+[[facts]]
+text = "Si gioca su Telegram, nel bot o nella mini app, con testi in italiano, inglese e spagnolo."
+source = "README, Transizione alla mini app Telegram"
+
+[[facts]]
+text = "Ci sono classifiche, statistiche personali, eventi tematici a tempo e trofei."
+source = "README del gioco, introduzione"
+
+[[facts]]
+text = "Nella mini app si puo' allenarsi e sfidare un amico su cinque percorsi identici."
+source = "README, Allenamento, amici ed eventi nella mini app"

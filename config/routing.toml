@@ -26,3 +26,8 @@ max_output_tokens = 16000
 [tasks.engineer_review]
 model = "claude-sonnet-5@openrouter"
 max_output_tokens = 1500
+
+# Review settimanale product/growth (M4): una proposta a settimana, fattibilita' calcolata dal codice.
+[tasks.growth_weekly]
+model = "gpt-6-sol@openrouter"
+max_output_tokens = 2500

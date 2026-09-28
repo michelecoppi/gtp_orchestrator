@@ -15,16 +15,20 @@ from typing import Optional
 
 from supervisor.core.clock import hours_between, iso
 from supervisor.core.config import Sources
-from supervisor.core.models import Event, Finding, SourceReport
+from supervisor.core.models import Event, Finding, SourceReport, stable_hash
 
 FAILED_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
 # Una PR appena aperta ha la CI ancora in coda: la si segnala solo dopo questo margine.
 PR_CI_GRACE_HOURS = 1.0
 STATEFUL_RULES = (
     "default_branch_unexpected", "pr_without_green_ci", "promo_drafts_stale", "promo_post_failed",
-    "promo_approved_overdue", "source_unavailable",
+    "promo_approved_overdue", "source_unavailable", "analytics_data_quality",
 )
 WORKFLOW_RULES = ("ci_failed", "deploy_failed", "workflow_failed")
+
+
+def stable_key(text: str) -> str:
+    return stable_hash(text)[:12]
 
 
 @dataclass
@@ -111,6 +115,14 @@ def evaluate(new_events: list[Event], reports: list[SourceReport], open_findings
                 f"{post['id']} approvato ma non pubblicato (previsto {post['scheduled_for']})",
                 "media", [f"promo_posts/{post['id']}"], stateful=True)
 
+    # --- stato: analytics (M4) ------------------------------------------------------------------
+    for analytics in reports:
+        if analytics.kind != "posthog" or not analytics.ok:
+            continue
+        for note in analytics.facts.get("data_quality") or []:
+            add("analytics_data_quality", analytics.source, stable_key(note), f"Qualita' dati analytics: {note}",
+                "media", ["docs/product-analytics.md §15b (repository del gioco)"], stateful=True)
+
     # --- stato: sorgenti ---------------------------------------------------------------------
     for report in reports:
         if report.configured and not report.ok:
@@ -127,6 +139,9 @@ def _resolutions(current: list[Finding], reports: list[SourceReport], open_findi
     by_source = {r.source: r for r in reports}
     subject_source = {r.repo: r.source for r in sources.github}
     subject_source["promo"] = sources.promo.source
+    for source_report in reports:
+        if source_report.kind == "posthog":
+            subject_source[source_report.source] = source_report.source
     resolve = []
     for finding in open_findings:
         if finding.id in current_ids:

@@ -1,0 +1,27 @@
+# M4: metriche di prodotto e growth (specifica, sez. 3, 11, 12).
+# Le definizioni riprendono quelle del gioco (docs/product-analytics.md §12 e §15b del repository del gioco):
+# il supervisore le automatizza, non le reinventa. Chiave PostHog: SUP_POSTHOG_PERSONAL_API_KEY (sola lettura).
+
+[posthog]
+host = "https://eu.i.posthog.com"
+project_id = "275711"
+# Solo traffico di produzione, come le insight salvate del gioco.
+environment = "production"
+# Le metriche PostHog non cambiano ogni tre ore: si interrogano al massimo una volta ogni tanto.
+refresh_hours = 20
+
+[thresholds]
+# Minimo per una lettura descrittiva (stesso valore delle insight del gioco): sotto, si mostrano i conteggi
+# ma non si confrontano ne' si classificano i tassi.
+min_users = 30
+activation_window_days = 30
+completion_window_days = 7
+return_cohort_days = 90
+north_star_weeks = 8
+
+[experiments]
+# Calcolo della numerosita' per un confronto fra due proporzioni (sez. 11 della specifica).
+alpha = 0.05
+power = 0.80
+# Oltre questa durata un esperimento non e' raggiungibile: meglio verifiche del funnel e feedback qualitativo.
+max_weeks = 8
