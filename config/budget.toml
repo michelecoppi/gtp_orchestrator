@@ -22,8 +22,8 @@ astra_enabled = false
 # Budget dedicato al confronto dei modelli (specifica, sez. 14): contabilita' separata dal tetto operativo.
 # Serve un'approvazione esplicita di Michele per ogni ricarica del tetto.
 [evaluation]
-approved = false
-approved_by = ""
-approved_on = ""
+approved = true
+approved_by = "Michele Coppi"
+approved_on = "2026-09-28"
 daily_hard_limit = 5.00
 monthly_hard_limit = 10.00

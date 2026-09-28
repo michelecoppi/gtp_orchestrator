@@ -6,7 +6,7 @@
 # `access_verified = false`: l'accesso dall'account di Michele non e' ancora stato provato. Il gateway
 # rifiuta questi modelli; si verificano con `python -m supervisor llm smoke <key>` e poi si aggiorna qui
 # a mano (il router non cambia mai il catalogo da solo). Verificare anche gli id `litellm_model`.
-version = "2026-09-28b"
+version = "2026-09-28c"
 verified_on = "2026-09-28"
 
 [[models]]
@@ -82,7 +82,7 @@ key = "gpt-6-luna@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/openai/gpt-6-luna"
 enabled = true
-access_verified = false
+access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 100000
 max_output_tokens = 4000
 prices = [{ from = "2026-01-01", input = 0.1055, output = 0.5275 }]
@@ -92,7 +92,7 @@ key = "gpt-6-sol@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/openai/gpt-6-sol"
 enabled = true
-access_verified = false
+access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 100000
 max_output_tokens = 16000
 prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
@@ -112,7 +112,7 @@ key = "claude-sonnet-5@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/anthropic/claude-sonnet-5"
 enabled = true
-access_verified = false
+access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 150000
 max_output_tokens = 16000
 prices = [{ from = "2026-01-01", input = 2.11, output = 10.55 }]
@@ -122,7 +122,7 @@ key = "claude-opus-5-5@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/anthropic/claude-opus-5.5"
 enabled = true
-access_verified = false
+access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 150000
 max_output_tokens = 16000
 prices = [{ from = "2026-01-01", input = 4.22, output = 21.10 }]
@@ -132,7 +132,7 @@ key = "gemini-3.8-flash@openrouter"
 provider = "openrouter"
 litellm_model = "openrouter/google/gemini-3.8-flash"
 enabled = true
-access_verified = false
+access_verified = true   # smoke OK 2026-09-28 (run Actions 36481614281)
 max_input_tokens = 150000
 max_output_tokens = 8000
 prices = [

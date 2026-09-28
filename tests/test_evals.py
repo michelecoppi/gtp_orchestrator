@@ -26,9 +26,9 @@ def test_budget_delle_evaluation_separato_da_quello_operativo():
     assert ev.summary(NOW)["day_actual"] == 200_000 and main.summary(NOW)["day_actual"] == 0
 
 
-def test_budget_evaluation_versionato_non_approvato():
+def test_budget_evaluation_versionato_e_approvato():
     budget = load_budget(ROOT / "config")
-    assert budget.evaluation is not None and not budget.evaluation.approved
+    assert budget.evaluation is not None and budget.evaluation.approved
     assert budget.evaluation.monthly_hard == usd_to_micros(10)
 
 

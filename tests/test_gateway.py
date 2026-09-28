@@ -129,7 +129,9 @@ def test_prezzo_promozionale_gemini_e_listino_2027():
 
 def test_catalogo_routing_e_policy_versionati():
     catalog = load_catalog("config")
-    assert all(not m.access_verified for m in catalog.models.values())  # nessun accesso dato per scontato
+    # Verificati solo i modelli con smoke test riuscito; le API dirette restano da verificare.
+    assert all(m.access_verified == m.key.endswith("@openrouter") for m in catalog.models.values()
+               if m.enabled)
     assert not catalog.get("gpt-6-astra").enabled
     route = load_routing("config")["triage"]
     assert catalog.get(route.model) is not None
@@ -192,7 +194,7 @@ def test_routing_su_openrouter_con_commissione_nel_prezzo():
     for task in ("triage", "engineer_plan", "engineer_patch", "engineer_review"):
         model = catalog.get(routing[task].model)
         assert model.provider == "openrouter" and model.litellm_model.startswith("openrouter/"), task
-        assert not model.access_verified  # si verifica con `llm smoke`, mai d'ufficio
+        assert model.access_verified  # verificato con `llm smoke`
     luna = catalog.get("gpt-6-luna@openrouter").price_on(day)
     direct = catalog.get("gpt-6-luna").price_on(day)
     assert luna.input_usd_per_mtok == pytest.approx(direct.input_usd_per_mtok * 1.055)
