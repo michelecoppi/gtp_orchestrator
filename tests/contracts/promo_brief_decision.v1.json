@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michelecoppi/promo_studio/blob/main/docs/schemas/promo_brief_decision.v1.json",
+  "title": "promo_brief_decisions/{campaign_id} (v1)",
+  "description": "Decisione di Promo Studio su un brief del supervisore, come la scrive promo/supervisor_briefs.py: ask (proposta all'admin, invio fallito e ritento), handle_press (pulsanti Usa/Scarta) e apply_used (bozze create). Sta nel Firestore del gioco accanto a promo_posts e la legge in sola lettura il supervisore (michelecoppi/gtp_orchestrator, collectors/promo.py). id e campaign_id coincidono. Campi in piu' sono ammessi: Promo puo' aggiungerne senza cambiare versione. Togliere o rinominare un campo, cambiarne il tipo o cambiare gli stati richiede promo_brief_decision.v2.json e un'issue su gtp_orchestrator.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "campaign_id",
+    "status",
+    "asked_at",
+    "brief",
+    "week",
+    "supervisor_expires_at",
+    "message_id"
+  ],
+  "properties": {
+    "id": {"$ref": "#/$defs/campaign_id", "description": "Uguale a campaign_id (id del documento)."},
+    "campaign_id": {"$ref": "#/$defs/campaign_id"},
+    "status": {"$ref": "#/$defs/status"},
+    "asked_at": {
+      "$ref": "#/$defs/utc_datetime",
+      "description": "Ultima proposta all'admin (anche un ritento dopo send_failed)."
+    },
+    "brief": {"$ref": "#/$defs/brief"},
+    "week": {"type": ["string", "null"], "description": "Settimana ISO del supervisore, es. 2026-W40."},
+    "supervisor_expires_at": {
+      "$ref": "#/$defs/utc_datetime_or_null",
+      "description": "expires_at del documento promo_briefs del supervisore al momento della proposta."
+    },
+    "message_id": {
+      "type": ["integer", "null"],
+      "description": "Messaggio Telegram con i pulsanti; null finche' l'invio non e' riuscito."
+    },
+    "error": {
+      "type": "string",
+      "description": "Motivo dell'ultimo invio fallito (send_failed); resta dopo un ritento riuscito."
+    },
+    "decided_by": {"type": "string", "description": "PROMO_ADMIN_NAME o username Telegram di chi ha premuto."},
+    "decided_at": {"$ref": "#/$defs/utc_datetime"},
+    "imported_at": {"$ref": "#/$defs/utc_datetime", "description": "Quando il brief usato e' diventato bozze."},
+    "imported_for": {"$ref": "#/$defs/day", "description": "Giorno (Europe/Rome) delle bozze create."},
+    "import_error": {
+      "type": ["string", "null"],
+      "description": "Perche' le bozze non sono state create; null dopo un'importazione riuscita."
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["used", "discarded"]}}},
+      "then": {"required": ["decided_by", "decided_at"], "properties": {"message_id": {"type": "integer"}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "asked"}}},
+      "then": {"properties": {"message_id": {"type": "integer"}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "send_failed"}}},
+      "then": {"required": ["error"], "properties": {"error": {"minLength": 1}}}
+    },
+    {
+      "if": {"required": ["imported_at"]},
+      "then": {"required": ["imported_for"], "properties": {"status": {"const": "used"}}}
+    }
+  ],
+  "$defs": {
+    "status": {"enum": ["asking", "asked", "send_failed", "used", "discarded"]},
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,24}$",
+      "description": "Come promo/briefs.py::_CAMPAIGN_ID (il gioco scarta maiuscole e '_')."
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Il brief validato da promo/briefs.py::validate (lo stesso JSON di brief-import).",
+      "required": ["campaign_id", "language", "format", "channel", "cta", "angle", "facts", "day"],
+      "properties": {
+        "campaign_id": {"$ref": "#/$defs/campaign_id"},
+        "language": {"enum": ["it", "en", "es"]},
+        "format": {"enum": ["who_is", "percent", "ladder", "journeyman"]},
+        "channel": {"enum": ["tiktok", "telegram_channel", "x"]},
+        "cta": {"type": "string"},
+        "angle": {"type": "string"},
+        "facts": {"type": "array", "items": {"type": "string"}},
+        "day": {"anyOf": [{"$ref": "#/$defs/day"}, {"type": "null"}]}
+      }
+    },
+    "utc_datetime": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "ISO 8601 UTC al secondo con Z, come promo/store.py::now_iso."
+    },
+    "utc_datetime_or_null": {"anyOf": [{"$ref": "#/$defs/utc_datetime"}, {"type": "null"}]},
+    "day": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+  }
+}

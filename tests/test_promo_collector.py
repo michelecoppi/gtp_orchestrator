@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from factory import post as factory_post
 from supervisor.collectors.promo import PromoCollector, StaticPostReader
 from supervisor.core.clock import parse_iso
@@ -18,6 +21,10 @@ def post(pid, day, status="draft", published_at=None):
 
 
 YESTERDAY = [post("y1", "2026-09-28", "published", "2026-09-28T10:23:00Z")]
+# Decisioni di Promo sui brief del supervisore, conformi a tests/contracts/promo_brief_decision.v1.json
+# (vedi test_brief_decision_contract.py).
+BRIEF_DECISIONS = json.loads((Path(__file__).parent / "fixtures" / "promo_brief_decisions.json")
+                             .read_text(encoding="utf-8"))
 
 
 def test_bozze_mancanti_solo_dopo_l_orario_e_se_promo_era_attivo():
@@ -43,14 +50,9 @@ def test_esito_dei_brief_del_supervisore():
     from supervisor.core.models import SourceReport
     from supervisor.reporting.brief import _promo_section
 
-    decisions = [
-        {"campaign_id": "2026w40-whois", "status": "used", "asked_at": "2026-09-28T06:40:00Z",
-         "decided_at": "2026-09-28T07:00:00Z", "imported_for": "2026-09-29"},
-        {"campaign_id": "2026w41-ladder", "status": "asked", "asked_at": "2026-10-05T06:40:00Z"},
-        {"campaign_id": "2026w30-whois", "status": "discarded", "decided_at": "2026-07-20T07:00:00Z"},  # vecchio
-    ]
+    # Usata, in attesa e una scartata a luglio, fuori dalla finestra di 30 giorni.
     now = parse_iso("2026-10-05T08:00:00Z")
-    result = PromoCollector(PromoConfig(), StaticPostReader(YESTERDAY, decisions)).collect({}, now)
+    result = PromoCollector(PromoConfig(), StaticPostReader(YESTERDAY, BRIEF_DECISIONS)).collect({}, now)
     briefs = result.report.facts["supervisor_briefs"]
     assert [b["campaign_id"] for b in briefs] == ["2026w40-whois", "2026w41-ladder"]
     lines = _promo_section(result.report).lines

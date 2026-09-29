@@ -1,0 +1,72 @@
+[
+  {
+    "id": "2026w40-whois",
+    "campaign_id": "2026w40-whois",
+    "status": "used",
+    "asked_at": "2026-09-28T06:40:00Z",
+    "brief": {
+      "campaign_id": "2026w40-whois",
+      "language": "it",
+      "format": "who_is",
+      "channel": "tiktok",
+      "cta": "Gioca la sfida di oggi",
+      "angle": "Riconosci il campione dal percorso",
+      "facts": [
+        "Ogni giorno una nuova sfida su Telegram."
+      ],
+      "day": null
+    },
+    "week": "2026-W40",
+    "supervisor_expires_at": "2026-10-12T08:00:00Z",
+    "message_id": 101,
+    "decided_by": "michele",
+    "decided_at": "2026-09-28T07:00:00Z",
+    "imported_at": "2026-09-29T06:37:00Z",
+    "imported_for": "2026-09-29",
+    "import_error": null
+  },
+  {
+    "id": "2026w41-ladder",
+    "campaign_id": "2026w41-ladder",
+    "status": "asked",
+    "asked_at": "2026-10-05T06:40:00Z",
+    "brief": {
+      "campaign_id": "2026w41-ladder",
+      "language": "it",
+      "format": "ladder",
+      "channel": "tiktok",
+      "cta": "Gioca la sfida di oggi",
+      "angle": "Riconosci il campione dal percorso",
+      "facts": [
+        "Ogni giorno una nuova sfida su Telegram."
+      ],
+      "day": null
+    },
+    "week": "2026-W41",
+    "supervisor_expires_at": "2026-10-19T08:00:00Z",
+    "message_id": 140
+  },
+  {
+    "id": "2026w30-whois",
+    "campaign_id": "2026w30-whois",
+    "status": "discarded",
+    "asked_at": "2026-07-20T06:40:00Z",
+    "brief": {
+      "campaign_id": "2026w30-whois",
+      "language": "it",
+      "format": "who_is",
+      "channel": "tiktok",
+      "cta": "Gioca la sfida di oggi",
+      "angle": "Riconosci il campione dal percorso",
+      "facts": [
+        "Ogni giorno una nuova sfida su Telegram."
+      ],
+      "day": null
+    },
+    "week": "2026-W30",
+    "supervisor_expires_at": "2026-08-03T08:00:00Z",
+    "message_id": 77,
+    "decided_by": "michele",
+    "decided_at": "2026-07-20T07:00:00Z"
+  }
+]

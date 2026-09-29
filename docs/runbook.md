@@ -76,7 +76,7 @@ python -m supervisor replay --fixtures tests/fixtures/github_replay.json --promo
 | Triage `blocked` | Il motivo è scritto accanto: budget non approvato, modello non verificato, tetto raggiunto, `SUP_AI_ENABLED` spento. Nessuna chiamata è partita. |
 | `budget` mostra "da riconciliare" | Una chiamata è finita in timeout o in crash. Controllare sulla dashboard del provider se è stata addebitata, poi `budget --reconcile <call_id> --actual <USD>` oppure `--release`. Fino ad allora quel task non riparte. |
 | Emergenza AI | Impostare `SUP_AI_ENABLED=false` (variabile del repository): osservazione e report continuano. |
-| Avviso "Contratto promo_posts" nella run di *Growth* | Lo schema di Promo è cambiato o GitHub non rispondeva: vedere [Contratto con Promo](#contratto-con-promo-promo_posts). |
+| Avviso "Contratti con Promo" nella run di *Growth* o messaggio "⚠️ Contratto con Promo da riallineare" su Telegram | Uno schema di Promo è cambiato o ne è comparsa una versione nuova (su Telegram arriva una volta sola per cambiamento); solo nel riepilogo, se GitHub non rispondeva. Vedere [Contratti con Promo](#contratti-con-promo-promo_posts-e-promo_brief_decisions). |
 
 ## Attivare l'AI (M2)
 
@@ -181,22 +181,42 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   `docs/proposals/promo-brief-intake.md`, aperte il 29/09/2026 come [gioco #218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218) e
   [promo_studio #1](https://github.com/michelecoppi/promo_studio/issues/1). Nuove proposte si aprono solo dopo averle approvate.
 
-## Contratto con Promo: `promo_posts`
+## Contratti con Promo: `promo_posts` e `promo_brief_decisions`
 
-Il collector Promo legge `promo_posts` secondo lo schema pubblicato da Promo Studio
-(`docs/schemas/promo_post.v1.json`, [issue #11](https://github.com/michelecoppi/gtp_orchestrator/issues/11)).
-- **Copia fissata**: `tests/contracts/promo_post.v1.json`, con `promo_post.v1.lock.json` accanto (repository,
-  percorso, SHA del commit di Promo, sha256 della copia). I test (`tests/test_promo_contract.py`, senza rete)
-  validano le fixture contro la copia e controllano che i campi letti dal collector (`POST_FIELDS`,
-  `HISTORY_FIELDS` in `collectors/promo.py`) e gli stati (`STATUSES`) siano nello schema.
-- **Controllo del cambio**: `python -m supervisor contracts check` confronta la copia con `main` di Promo
-  (API GitHub in sola lettura, repo pubblico). Esce con 0 se coincide, 1 se è cambiata, se è comparsa una
-  `promo_post.v2.json` o se GitHub non risponde. Gira ogni lunedì come passo **non bloccante** del workflow
-  *Growth*: se fallisce lascia un avviso (warning e riepilogo della run), la review va avanti.
-- **Riallinearsi**: su un branch, `python -m supervisor contracts check --update` riscrive copia e lock, poi
-  `python -m pytest -q` dice cosa non torna (fixture, `POST_FIELDS`, stati). Se lo schema è cambiato solo nei
+Il collector Promo legge due collezioni scritte da Promo Studio nel Firestore del gioco, ognuna con lo schema
+pubblicato da Promo:
+
+| Contratto | Schema in Promo | Copia e lock nel supervisore | Test | Campi letti dal collector |
+|---|---|---|---|---|
+| `promo_post.v1` ([#11](https://github.com/michelecoppi/gtp_orchestrator/issues/11)) | `docs/schemas/promo_post.v1.json` | `tests/contracts/promo_post.v1.json` + `.lock.json` | `tests/test_promo_contract.py` | `POST_FIELDS`, `HISTORY_FIELDS`, `STATUSES` |
+| `promo_brief_decision.v1` ([#14](https://github.com/michelecoppi/gtp_orchestrator/issues/14)) | `docs/schemas/promo_brief_decision.v1.json` | `tests/contracts/promo_brief_decision.v1.json` + `.lock.json` | `tests/test_brief_decision_contract.py` | `DECISION_FIELDS` (stati: `BRIEF_LABELS` di `reporting/brief.py`) |
+
+- **Copia fissata**: il `.lock.json` accanto a ogni copia registra repository, percorso, SHA del commit di Promo e
+  sha256 della copia. I test, senza rete, validano le fixture contro la copia (per le decisioni:
+  `tests/fixtures/promo_brief_decisions.json`, la stessa del test del collector) e controllano che ogni campo
+  letto dal collector sia nello schema. La copia non si modifica a mano.
+- **Controllo del cambio**: `python -m supervisor contracts check` confronta ogni copia con `main` di Promo
+  (API GitHub in sola lettura, repo pubblico). Esce con 0 se coincidono, 1 se una è cambiata, se è comparsa
+  una versione nuova (per esempio `promo_post.v2.json`) o se GitHub non risponde. Gira ogni lunedì come passo
+  **non bloccante** del workflow *Growth*: lascia un warning e il riepilogo nella run e salva l'esito in
+  `out/contracts.json` (`--report`); la review va avanti.
+- **Avviso su Telegram**: il passo successivo, `python -m supervisor contracts notify --report
+  out/contracts.json`, manda a Michele un messaggio per ogni contratto cambiato o con una versione nuova: quale
+  schema, SHA su Promo e SHA della copia (con i link ai commit), cosa fare. Una volta sola per cambiamento: la
+  chiave dipende dal contenuto su Promo e dalla copia, si prenota nello stato come ogni notifica e, dopo
+  l'invio, resta nella collezione `contract_alerts`, che non scade. Un cambio non riallineato non si ripete i
+  lunedì dopo; un cambio diverso manda un messaggio nuovo. "Non verificabile" (rete, limite di richieste,
+  404) resta solo nel riepilogo. Niente invii in dry-run o con `SUP_ENABLED=false`; un invio fallito si
+  ritenta al giro dopo. Anche questo passo non blocca la review.
+- **Riallinearsi**: su un branch, `python -m supervisor contracts check --update` riscrive copie e lock, poi
+  `python -m pytest -q` dice cosa non torna (fixture, campi letti, stati). Se lo schema è cambiato solo nei
   campi che il supervisore non legge, basta la PR con la copia nuova; altrimenti si adegua il collector nella
-  stessa PR. `--ref <branch>` confronta con un branch di Promo prima del merge.
+  stessa PR. Una versione nuova richiede anche un'issue. `--ref <branch o SHA>` confronta con un branch di
+  Promo prima del merge.
+- **Contratto nuovo**: basta un lock con `repo` e `path` (commit e sha256 vuoti) e il nome in
+  `contracts.CONTRACTS`: `contracts check --update --ref <SHA>` scarica la copia e completa il lock. Finché lo
+  schema non è su `main` di Promo, la copia resta fissata allo SHA del branch della PR di Promo; dopo il merge
+  di Promo si rilancia `contracts check --update` (su `main`) prima del merge del supervisore.
 
 ## Operatività e recupero (M6)
 
