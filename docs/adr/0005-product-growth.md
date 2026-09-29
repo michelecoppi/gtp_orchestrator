@@ -43,6 +43,27 @@ Il gioco ha già definizioni, finestre, soglie minime (30 utenti) e una procedur
   attribuisce (l'esempio `2026w40_it_tiktok` perderebbe la campagna). Gli id generati dal supervisore rispettano
   la regola del gioco, verificata da un test.
 
+## Aggiornamento 29/09/2026 — brief pubblicati nello stato ([issue #9](https://github.com/michelecoppi/gtp_orchestrator/issues/9))
+Il passaggio manuale (scaricare il file dall'artifact e lanciare `brief-import`) diventa un contratto di sola
+lettura fra i due Firestore.
+- **Il supervisore pubblica, non consegna.** La review scrive `promo_briefs/{campaign_id}` nel proprio
+  Firestore con `status: proposed`, `schema_version: 1`, `expires_at` (+14 giorni) e `brief`, che è esattamente il
+  JSON di `brief-import` (`promo_import_payload`). Il formato è fissato da `tests/fixtures/promo_brief_doc.json`,
+  copiato nei test di Promo.
+- **Scrittura solo se assente** (transazione `create`): rilanciare la review, anche con `force`, non duplica il
+  brief e non ne cambia il contenuto già visto da Promo.
+- **Lo stato della decisione vive in Promo**, non qui: `promo_brief_decisions/{campaign_id}` nel Firestore del
+  gioco (`asked` → `used` | `discarded`, con chi ha deciso e quando). Così il supervisore non riceve permessi di
+  scrittura da Promo né Promo dal supervisore. Il supervisore legge le decisioni con il collector Promo (ha già
+  `datastore.viewer` sul progetto del gioco) e le mostra nel brief quotidiano.
+- **Promo legge con `roles/datastore.viewer`** sul progetto `gtp-orchestrator`, dato a mano da Michele (runbook,
+  M4). Il ruolo copre tutto il Firestore del supervisore: non contiene segreti, ma budget, eventi e finding
+  diventano leggibili da Promo. Alternativa scartata per semplicità: un secondo database Firestore solo per i
+  brief.
+- **Conservazione:** `expires_at` (14 giorni) dice a Promo fino a quando proporre il brief; il documento resta 90
+  giorni (`RETENTION_DAYS`, `prune`), per rileggere la campagna nelle review successive.
+- Il file nell'artifact di *Growth* resta come via manuale.
+
 ## Conseguenze
 - Con i volumi attuali (pochi utenti al giorno) quasi tutte le proposte saranno qualitative o riguarderanno i
   dati. È il risultato corretto: nessun "vincitore" su numeri piccoli.

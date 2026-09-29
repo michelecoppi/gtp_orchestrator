@@ -8,6 +8,10 @@ i cron di GitHub. Se si ferma quella catena non fallisce nessuna run da osservar
 supervisore controlla anche i dati: le bozze di oggi devono esistere entro `drafts_expected_by`. Il supervisore non importa codice di
 Promo e non scrive mai nella coda: approvare e pubblicare restano azioni di Michele e del
 publisher di Promo. Si leggono solo stato, date e id; caption e media non servono.
+
+Dall'issue #9 si leggono anche le decisioni sui brief del supervisore (`promo_brief_decisions`, scritte da
+Promo quando Michele preme ✅ Usa / ❌ Scarta): servono al brief quotidiano per dire che fine ha fatto ogni
+campagna proposta. Se la lettura fallisce, i post restano validi e le decisioni risultano "non disponibili".
 """
 from __future__ import annotations
 
@@ -23,6 +27,9 @@ from supervisor.core.scrub import scrub, untrusted
 STATUSES = ("draft", "approved", "rejected", "published", "failed")
 # Un post approvato con `scheduled_for` passato da piu' di tanto non e' stato pubblicato.
 PUBLISH_GRACE = timedelta(hours=2)
+# Collezione di Promo (promo/supervisor_briefs.py) con l'esito dei brief del supervisore.
+BRIEF_DECISIONS = "promo_brief_decisions"
+BRIEF_WINDOW = timedelta(days=30)
 
 
 class PostReader(Protocol):
@@ -39,13 +46,24 @@ class FirestorePostReader:
 
         return [s.to_dict() for s in client(self.project).collection(self.collection).stream()]
 
+    def list_brief_decisions(self) -> list[dict]:
+        from supervisor.state.firestore import client
+
+        return [s.to_dict() for s in client(self.project).collection(BRIEF_DECISIONS).stream()]
+
 
 class StaticPostReader:
-    def __init__(self, posts: list[dict]) -> None:
+    def __init__(self, posts: list[dict], decisions: Optional[list[dict]] = None) -> None:
         self.posts = posts
+        self.decisions = decisions
 
     def list_posts(self) -> list[dict]:
         return [dict(p) for p in self.posts]
+
+    def list_brief_decisions(self) -> list[dict]:
+        if self.decisions is None:
+            raise LookupError("decisioni sui brief non fornite")
+        return [dict(d) for d in self.decisions]
 
 
 class PromoCollector:
@@ -71,8 +89,26 @@ class PromoCollector:
         events = [_post_event(self.source, p, received) for p in posts if p.get("id")]
         facts = _facts(posts, now, self.config.stale_draft_hours)
         facts.update(_daily(posts, now, self.config))
+        facts["supervisor_briefs"] = self._briefs(now)
         return CollectResult([StreamResult(stream, events, {"scanned_at": received, "posts": len(posts)})],
                              SourceReport(self.source, self.kind, ok=True, facts=facts))
+
+
+    def _briefs(self, now: datetime) -> Optional[list[dict]]:
+        """Esito dei brief del supervisore negli ultimi 30 giorni; None se non leggibile."""
+        reader = getattr(self.reader, "list_brief_decisions", None)
+        if reader is None:
+            return None
+        try:
+            docs = reader()
+        except Exception:  # collezione illeggibile: non invalida i post
+            return None
+        since = iso(now - BRIEF_WINDOW)
+        recent = [d for d in docs if d.get("campaign_id")
+                  and max(d.get("decided_at") or "", d.get("asked_at") or "") >= since]
+        return [{"campaign_id": d["campaign_id"], "status": d.get("status", "unknown"),
+                 "decided_at": d.get("decided_at"), "imported_for": d.get("imported_for")}
+                for d in sorted(recent, key=lambda d: d["campaign_id"])]
 
 
 def _post_event(source: str, post: dict, received: str) -> Event:

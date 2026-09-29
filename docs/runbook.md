@@ -17,6 +17,7 @@
 | Secret `SUP_POSTHOG_PERSONAL_API_KEY` (PostHog, sola lettura delle query) per M4 | **Michele** |
 | Orologio esterno: token, cron-job.org, healthchecks.io, secret `SUP_HEALTHCHECK_URL` (sezione M6) | fatto |
 | Secret `SUP_GAME_BOT_TOKEN` (token del bot del gioco, solo `getWebhookInfo`) | **Michele** |
+| `roles/datastore.viewer` su `gtp-orchestrator` al service account di Promo, per leggere `promo_briefs` (issue #9, sezione M4) | **Michele** |
 
 ## Setup iniziale (una volta, a cura di Michele)
 
@@ -134,10 +135,43 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   stima del costo. Produce una proposta con i campi della specifica (sez. 11) e la fattibilità calcolata dal
   codice. Se riguarda la promozione, aggiunge una bozza di brief per Promo con `campaign_id`. Per vedere le
   bozze: `python -m supervisor growth briefs`.
-- **Dal brief alla bozza Promo**: il workflow *Growth* allega `briefs/<campaign_id>.json`. Si scarica e nel
-  repository di Promo si lancia `python -m promo brief-import <campaign_id>.json` (con `--dry-run` per provare).
-  Il link di tracciamento contiene la campagna solo con `PROMO_CAMPAIGN_LINKS=true`. I nuovi giocatori arrivati
-  dal link compaiono nel brief quotidiano alla voce "Attivazione 24h per campagna".
+- **Dal brief alla bozza Promo** ([issue #9](https://github.com/michelecoppi/gtp_orchestrator/issues/9)): la
+  review salva il brief nello stato, in `promo_briefs/{campaign_id}`:
+
+  | Campo | Contenuto |
+  |---|---|
+  | `schema_version` | `1` (Promo ignora le versioni che non conosce) |
+  | `campaign_id`, `week` | la campagna e la settimana ISO della review |
+  | `status` | `proposed`; il supervisore non lo cambia più |
+  | `created_at`, `expires_at` | ISO UTC; Promo lo propone solo prima di `expires_at` (14 giorni) |
+  | `brief` | esattamente il JSON di `brief-import`: `campaign_id`, `language`, `format`, `channel`, `cta`, `angle`, `facts` |
+  | `audience`, `proposed_start_param`, `primary_metric`, `fact_sources`, `warnings` | contesto per chi legge |
+  | `expire_at` | solo su Firestore: pulizia di `prune` dopo 90 giorni |
+
+  Esempio completo: `tests/fixtures/promo_brief_doc.json` (lo stesso file è nei test di Promo). La scrittura è
+  idempotente: rilanciare la review, anche con `force`, non duplica il brief e non lo sovrascrive.
+
+  Promo (issue [promo_studio#7](https://github.com/michelecoppi/promo_studio/issues/7)) lo legge in sola lettura
+  dopo le bozze delle 08:37, lo manda a Michele sul bot approvazioni con **✅ Usa / ❌ Scarta** e salva l'esito
+  nel proprio stato (`promo_brief_decisions` nel Firestore del gioco). Un brief usato diventa bozze al giro
+  successivo, con le stesse regole di `brief-import`; le bozze si approvano poi come sempre. Il supervisore non
+  scrive mai nello stato di Promo: legge le decisioni con il collector Promo e le mostra nel brief quotidiano,
+  alla voce "Brief del supervisore in Promo".
+
+  Il file resta anche nell'artifact di *Growth* (`briefs/<campaign_id>.json`) e con `growth briefs --export`: si
+  può ancora importare a mano con `python -m promo brief-import <campaign_id>.json`. Il link di tracciamento
+  contiene la campagna solo con `PROMO_CAMPAIGN_LINKS=true`. I nuovi giocatori arrivati dal link compaiono nel
+  brief quotidiano alla voce "Attivazione 24h per campagna".
+- **Permesso di lettura per Promo** (una volta, a cura di Michele): il service account di Promo è quello del
+  secret `GCP_SERVICE_ACCOUNT` del repository `promo_studio`. Sostituire il segnaposto con la sua email:
+
+  ```bash
+  gcloud projects add-iam-policy-binding gtp-orchestrator     --member="serviceAccount:<SERVICE_ACCOUNT_DI_PROMO>"     --role="roles/datastore.viewer" --condition=None
+  ```
+
+  Il ruolo è di sola lettura ma vale per tutto il Firestore del supervisore (Firestore non ha permessi per
+  collezione): Promo legge solo `promo_briefs`. Per revocarlo: `gcloud projects remove-iam-policy-binding` con
+  gli stessi argomenti.
 - **La chiave PostHog** va creata in PostHog (*Settings → Personal API keys*) con il solo permesso di lettura
   delle query, sul progetto 275711.
 - **Dati di qualità**: se compare il finding `analytics_data_quality` (per esempio `bot_started` assente), si
@@ -176,6 +210,7 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   - eventi dopo 400 giorni;
   - run dopo 90 giorni;
   - snapshot e notifiche dopo 30 giorni;
+  - brief per Promo (`promo_briefs`) dopo 90 giorni;
   - finding risolti dopo un anno.
 
   Budget, usage, decisioni e task si tengono. Ogni documento ha anche `expire_at`: se il progetto GCP avrà la

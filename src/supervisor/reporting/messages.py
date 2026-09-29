@@ -322,7 +322,7 @@ def growth_message(week: str, proposal: dict[str, Any], brief: Optional[dict[str
     if brief:
         blocks.append(f"<b>🎬 Brief per Promo</b> (bozza): <code>{esc(brief['campaign_id'])}</code>\n"
                       f"{esc(brief['channel'])} · {esc(brief['language'])} · {esc(brief['format'])} — "
-                      f"«{esc(brief['cta'])}»\nFile per <code>brief-import</code> nel report.")
+                      f"«{esc(brief['cta'])}»\nPromo te lo propone sul bot approvazioni (✅ Usa / ❌ Scarta).")
     if details:
         blocks.append(link(details, "📄 Review completa"))
     return _join(blocks)

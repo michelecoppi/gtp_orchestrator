@@ -212,7 +212,27 @@ def _promo_section(report: SourceReport) -> Section:
         f"Approvati ma non pubblicati: {len(facts.get('approved_overdue') or [])}",
         f"Bozze di oggi: {facts.get('drafts_today', NA)} · pubblicati oggi: {facts.get('published_today', NA)}",
         f"Pubblicati negli ultimi 7 giorni: {facts.get('published_last_7d')}",
+        _supervisor_briefs_line(facts.get("supervisor_briefs")),
     ])
+
+
+BRIEF_LABELS = {"asking": "in invio", "asked": "proposto, in attesa di Michele", "send_failed": "invio fallito",
+                "used": "usato", "discarded": "scartato"}
+
+
+def _supervisor_briefs_line(briefs: Optional[list[dict]]) -> str:
+    """Esito dei brief del supervisore in Promo (`promo_brief_decisions`), ultimi 30 giorni."""
+    if briefs is None:
+        return f"Brief del supervisore in Promo: {NA}"
+    if not briefs:
+        return "Brief del supervisore in Promo (30 giorni): nessuno"
+    parts = []
+    for b in briefs:
+        label = BRIEF_LABELS.get(b["status"], b["status"])
+        if b["status"] == "used":
+            label += f", bozze del {b['imported_for']}" if b.get("imported_for") else ", bozze al prossimo giro"
+        parts.append(f"{b['campaign_id']} {label}")
+    return "Brief del supervisore in Promo (30 giorni): " + "; ".join(parts)
 
 
 def render_markdown(brief: Brief) -> str:
