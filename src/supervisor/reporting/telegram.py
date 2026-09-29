@@ -2,7 +2,8 @@
 
 Il supervisore usa SOLO `sendMessage`: niente pulsanti, niente `getUpdates`. Il comando `sync`
 di Promo legge `getUpdates` e ne conferma gli offset; un secondo lettore gli ruberebbe i click
-su Approva/Rifiuta. Testo semplice, senza parse_mode e senza anteprime dei link.
+su Approva/Rifiuta. Messaggi in HTML di Telegram costruiti da `reporting/messages.py`, che
+esegue l'escape di ogni testo dinamico; niente anteprime dei link.
 
 Ogni invio e' idempotente: la chiave (contenuto + giorno) si prenota nello stato prima di
 chiamare Telegram. Se l'invio fallisce la prenotazione diventa `failed` e si puo' ritentare; se
@@ -38,16 +39,17 @@ class TelegramNotifier:
     def configured(self) -> bool:
         return bool(self.token and self.chat_id)
 
-    def send(self, store: StateStore, kind: str, text: str, now: datetime) -> SendOutcome:
+    def send(self, store: StateStore, kind: str, text: str, now: datetime, html: bool = True) -> SendOutcome:
         if not self.configured:
             return SendOutcome("not_configured", "SUP_TELEGRAM_BOT_TOKEN o SUP_ADMIN_CHAT_ID mancanti")
         key = f"{kind}-{rome_day(now)}-{stable_hash(text)[:16]}"
         if not store.claim_notification(key, iso(now), text[:120]):
             return SendOutcome("duplicate", key)
         try:
-            response = self.http.request("POST", f"{API}/bot{self.token}/sendMessage", json_body={
-                "chat_id": self.chat_id, "text": text, "disable_web_page_preview": True,
-            })
+            body = {"chat_id": self.chat_id, "text": text, "disable_web_page_preview": True}
+            if html:
+                body["parse_mode"] = "HTML"
+            response = self.http.request("POST", f"{API}/bot{self.token}/sendMessage", json_body=body)
             ok = response.status == 200 and isinstance(response.body, dict) and response.body.get("ok")
             detail = "" if ok else f"HTTP {response.status}"
         except Exception as exc:

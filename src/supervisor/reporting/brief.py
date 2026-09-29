@@ -1,9 +1,8 @@
 """Il brief: un riepilogo costruito solo dai record salvati, senza modelli linguistici.
 
 Ogni riga risale a un fatto dello snapshot, a un evento o a un finding. Un dato che manca si
-scrive "non disponibile", mai zero. La stessa struttura si rende in Markdown (artifact di
-Actions) e in testo semplice (Telegram, senza parse_mode: i titoli di issue e PR sono dati non
-fidati e non devono diventare formattazione o link attivi).
+scrive "non disponibile", mai zero. Questo e' il report completo in Markdown (artifact di Actions);
+il messaggio Telegram, breve e strutturato, lo costruisce `reporting/messages.py`.
 """
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ from supervisor.core.models import Event, Finding, SourceReport
 NA = "non disponibile"
 STALE_SNAPSHOT_HOURS = 6
 SEVERITY_ORDER = {"alta": 0, "media": 1, "bassa": 2}
-TELEGRAM_LIMIT = 3900
 
 
 @dataclass
@@ -198,22 +196,3 @@ def render_markdown(brief: Brief) -> str:
         out += [("  - " + line.strip()) if line.startswith("  ") else f"- {line}" for line in section.lines]
         out.append("")
     return "\n".join(out).rstrip() + "\n"
-
-
-def render_telegram(brief: Brief) -> str:
-    out = [brief.title, *brief.intro]
-    for section in brief.sections:
-        out += ["", f"▸ {section.title}"]
-        out += [("   ◦ " + line.strip()) if line.startswith("  ") else f"• {line}" for line in section.lines]
-    text = "\n".join(out)
-    if len(text) > TELEGRAM_LIMIT:
-        text = text[:TELEGRAM_LIMIT] + "\n… (troncato: il brief completo e' nell'artifact del workflow)"
-    return text
-
-
-def render_findings_alert(findings: list[Finding]) -> str:
-    lines = [f"GTP Supervisor: {len(findings)} nuovi finding"]
-    for f in sorted(findings, key=lambda f: (SEVERITY_ORDER.get(f.severity, 9), f.id)):
-        evidence = f"\n   {f.evidence[0]}" if f.evidence else ""
-        lines.append(f"• [{f.severity}] {f.subject}: {f.statement}{evidence}")
-    return "\n".join(lines)[:TELEGRAM_LIMIT]

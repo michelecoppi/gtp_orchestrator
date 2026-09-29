@@ -22,6 +22,7 @@ from supervisor.product.growth import (
     weekly_review,
 )
 from supervisor.product.metrics import HogQL, collect_product, load_product
+from supervisor.reporting.messages import growth_message, run_url
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state import open_store
 
@@ -61,11 +62,7 @@ def cmd_review(args, settings: Settings) -> int:
     for warning in result.warnings:
         print(f"ATTENZIONE: {warning}")
     if args.notify and result.status == "proposed" and result.proposal:
-        p = result.proposal
-        message = (f"GTP Supervisor — review {result.week}\nProposta ({p['kind']}, {p['role']}): {p['intervention']}\n"
-                   f"Metrica: {p['primary_metric']}. {p['feasibility']['reason']}")
-        if result.brief:
-            message += f"\nBozza di brief per Promo: {result.brief['campaign_id']} ({result.brief['channel']})"
+        message = growth_message(result.week, result.proposal, result.brief, run_url())
         TelegramNotifier(RequestsHttp(), settings.telegram_bot_token, settings.admin_chat_id).send(
             store, "growth", message, now)
     return 0

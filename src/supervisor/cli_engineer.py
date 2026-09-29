@@ -28,6 +28,7 @@ from supervisor.engineering.service import claim, scan_approvals, verify_prs
 from supervisor.engineering.tasks import TaskConflict, TaskQueue
 from supervisor.engineering.worker import Models, run_work
 from supervisor.llm.catalog import load_routing
+from supervisor.reporting.messages import pr_opened_message, pr_update_message
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state import open_store
 
@@ -152,8 +153,8 @@ def cmd_open_pr(args, settings: Settings) -> int:
     print(f"draft PR #{pr.number} {'ritrovata' if pr.reused else 'aperta'}: {pr.url} (patch {sha256(patch_text)[:12]})")
     notifier = TelegramNotifier(http, settings.telegram_bot_token, settings.admin_chat_id)
     if not pr.reused:
-        notifier.send(store, "engineer", f"GTP Supervisor: draft PR #{pr.number} per la issue #{task['issue_number']} "
-                                         f"— {pr.url}\nLa CI e' in corso: ti avviso quando e' verde.", _now(args))
+        notifier.send(store, "engineer", pr_opened_message(task["issue_number"], task["issue_title"], pr.number,
+                                                           pr.url), _now(args))
     return 0
 
 
@@ -168,7 +169,8 @@ def cmd_verify(args, settings: Settings) -> int:
     for update in updates:
         print(update.message)
         if args.notify and update.kind in ("ci_green", "ci_failed"):
-            notifier.send(store, "engineer", f"GTP Supervisor: {update.message}", _now(args))
+            notifier.send(store, "engineer", pr_update_message(update.kind, update.issue_number, update.pr_number,
+                                                               update.pr_url, update.head_sha), _now(args))
     if not updates:
         print("nessun cambiamento sulle PR del supervisore")
     return 0

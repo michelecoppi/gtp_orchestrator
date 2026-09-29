@@ -70,7 +70,11 @@ def claim(queue: TaskQueue, api: GitHubApi, config: EngineeringConfig, owner: st
 class PrUpdate:
     task_id: str
     message: str
-    kind: str  # ci_green | ci_failed | merged | closed
+    kind: str  # ci_green | ci_failed | merged | closed | error
+    issue_number: int = 0
+    pr_number: int = 0
+    pr_url: str = ""
+    head_sha: str = ""
 
 
 def _ci_for_sha(api: GitHubApi, repo: str, sha: str, workflow: str) -> str:
@@ -115,10 +119,12 @@ def verify_prs(queue: TaskQueue, api: GitHubApi, sources: Sources, now: datetime
                              note=f"CI {ci} su {head[:7]}")
         except TaskConflict:
             continue
+        extra = {"issue_number": task["issue_number"], "pr_number": number, "pr_url": pr.get("html_url") or "",
+                 "head_sha": head}
         if phase == "ci_green":
             updates.append(PrUpdate(task["id"], f"PR #{number} pronta per la tua review: CI verde su {head[:7]} "
-                                                f"— {pr.get('html_url')}", "ci_green"))
+                                                f"— {pr.get('html_url')}", "ci_green", **extra))
         elif phase == "ci_failed":
             updates.append(PrUpdate(task["id"], f"PR #{number}: CI fallita su {head[:7]} — {pr.get('html_url')}",
-                                    "ci_failed"))
+                                    "ci_failed", **extra))
     return updates

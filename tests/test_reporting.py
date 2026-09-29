@@ -2,7 +2,7 @@ from factory import GAME, NOW
 from supervisor.collectors.http import HttpResponse
 from supervisor.core.clock import parse_iso
 from supervisor.core.models import Event, Finding, SourceReport
-from supervisor.reporting.brief import build_brief, render_findings_alert, render_markdown, render_telegram
+from supervisor.reporting.brief import build_brief, render_markdown
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state.store import MemoryStore, snapshot_doc
 
@@ -53,13 +53,6 @@ def test_snapshot_vecchio_segnalato():
     assert any("snapshot vecchio" in line for line in brief.intro)
 
 
-def test_telegram_troncato():
-    lines = [{"number": i, "draft": False, "ci": "none", "title": "x" * 100} for i in range(100)]
-    facts = {"repo": GAME, "open_prs": lines}
-    text = render_telegram(build_brief(snapshot(SourceReport(SRC, "github", True, facts)), [], [], now))
-    assert len(text) < 4096 and text.endswith("artifact del workflow)")
-
-
 class FakeTelegram:
     def __init__(self, status=200, ok=True, raises=None):
         self.status, self.ok, self.raises = status, ok, raises
@@ -79,7 +72,7 @@ def test_invio_idempotente_nello_stesso_giorno():
     assert notifier.send(store, "brief", "ciao", now).status == "duplicate"
     assert notifier.send(store, "brief", "diverso", now).status == "sent"
     assert len(http.sent) == 2
-    assert http.sent[0] == {"chat_id": "42", "text": "ciao", "disable_web_page_preview": True}
+    assert http.sent[0] == {"chat_id": "42", "text": "ciao", "disable_web_page_preview": True, "parse_mode": "HTML"}
 
 
 def test_invio_fallito_si_ritenta_e_non_espone_il_token():
@@ -94,11 +87,6 @@ def test_invio_fallito_si_ritenta_e_non_espone_il_token():
 
 def test_non_configurato():
     assert TelegramNotifier(FakeTelegram(), "", "").send(MemoryStore(), "brief", "x", now).status == "not_configured"
-
-
-def test_alert_finding():
-    text = render_findings_alert([Finding("ci_failed", GAME, "k", "CI rotta", "alta", ["https://x"])])
-    assert text.startswith("GTP Supervisor: 1 nuovi finding") and "https://x" in text
 
 
 def test_sezione_engineering():

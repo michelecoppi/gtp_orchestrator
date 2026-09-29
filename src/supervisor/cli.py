@@ -37,7 +37,8 @@ from supervisor.engineering.tasks import TaskQueue
 from supervisor.llm.catalog import load_catalog, load_routing
 from supervisor.llm.client import LLMClient
 from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
-from supervisor.reporting.brief import build_brief, render_findings_alert, render_markdown, render_telegram
+from supervisor.reporting.brief import build_brief, render_markdown
+from supervisor.reporting.messages import brief_message, findings_message, run_url
 from supervisor.reporting.telegram import TelegramNotifier
 from supervisor.state import open_store
 from supervisor.state.store import DECISIONS, StateStore
@@ -122,7 +123,7 @@ def _run_observe(args, settings: Settings, store: StateStore, http: HttpClient,
     _print_outcome(outcome)
     if notify and outcome.new_findings and not args.dry_run:
         notifier = TelegramNotifier(RequestsHttp(), settings.telegram_bot_token, settings.admin_chat_id)
-        result = notifier.send(store, "findings", render_findings_alert(outcome.new_findings), now)
+        result = notifier.send(store, "findings", findings_message(outcome.new_findings, run_url()), now)
         print(f"notifica finding: {result.status} {result.detail}".rstrip())
     return 0
 
@@ -152,9 +153,9 @@ def cmd_report(args, settings: Settings) -> int:
     now = _now(args)
     open_findings = store.open_findings()
     decisions = {f.id: d for f in open_findings if (d := store.get_doc(DECISIONS, f.id))}
-    brief = build_brief(store.latest_snapshot(), open_findings, store.events_since(iso(now - timedelta(hours=24))),
-                        now, decisions=decisions, budget=_budget_summary(settings, store, now),
-                        tasks=TaskQueue(store).list())
+    snapshot, events = store.latest_snapshot(), store.events_since(iso(now - timedelta(hours=24)))
+    budget, tasks = _budget_summary(settings, store, now), TaskQueue(store).list()
+    brief = build_brief(snapshot, open_findings, events, now, decisions=decisions, budget=budget, tasks=tasks)
     markdown = render_markdown(brief)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -164,7 +165,9 @@ def cmd_report(args, settings: Settings) -> int:
         print(markdown)
     if args.notify:
         notifier = TelegramNotifier(RequestsHttp(), settings.telegram_bot_token, settings.admin_chat_id)
-        result = notifier.send(store, "brief", render_telegram(brief), now)
+        message = brief_message(snapshot, open_findings, events, now, decisions=decisions, budget=budget,
+                                tasks=tasks, details=run_url())
+        result = notifier.send(store, "brief", message, now)
         print(f"notifica brief: {result.status} {result.detail}".rstrip())
         return 1 if result.status == "failed" else 0
     return 0
