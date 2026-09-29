@@ -33,3 +33,27 @@ def test_pubblicati_oggi_nel_giorno_di_roma():
     posts = YESTERDAY + [post("t1", "2026-09-29", "published", "2026-09-29T10:23:00Z"),
                          post("t2", "2026-09-29", "published", "2026-09-28T22:30:00Z")]  # 00:30 di Roma
     assert facts(posts, "2026-09-29T12:00:00Z")["published_today"] == 2
+
+
+def test_esito_dei_brief_del_supervisore():
+    from supervisor.core.models import SourceReport
+    from supervisor.reporting.brief import _promo_section
+
+    decisions = [
+        {"campaign_id": "2026w40-whois", "status": "used", "asked_at": "2026-09-28T06:40:00Z",
+         "decided_at": "2026-09-28T07:00:00Z", "imported_for": "2026-09-29"},
+        {"campaign_id": "2026w41-ladder", "status": "asked", "asked_at": "2026-10-05T06:40:00Z"},
+        {"campaign_id": "2026w30-whois", "status": "discarded", "decided_at": "2026-07-20T07:00:00Z"},  # vecchio
+    ]
+    now = parse_iso("2026-10-05T08:00:00Z")
+    result = PromoCollector(PromoConfig(), StaticPostReader(YESTERDAY, decisions)).collect({}, now)
+    briefs = result.report.facts["supervisor_briefs"]
+    assert [b["campaign_id"] for b in briefs] == ["2026w40-whois", "2026w41-ladder"]
+    lines = _promo_section(result.report).lines
+    assert lines[-1] == ("Brief del supervisore in Promo (30 giorni): 2026w40-whois usato, bozze del 2026-09-29; "
+                         "2026w41-ladder proposto, in attesa di Michele")
+    # Senza decisioni leggibili i post restano validi e i brief risultano non disponibili.
+    missing = PromoCollector(PromoConfig(), StaticPostReader(YESTERDAY)).collect({}, now).report
+    assert missing.ok and missing.facts["supervisor_briefs"] is None
+    assert _promo_section(SourceReport(missing.source, "promo", True, missing.facts)).lines[-1].endswith(
+        "non disponibile")

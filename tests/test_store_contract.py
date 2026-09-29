@@ -99,3 +99,30 @@ def test_sqlite_lock_esclusivo_fra_connessioni(tmp_path):
     for t in threads:
         t.join()
     assert sorted(results) == [False] * 7 + [True]
+
+
+def test_documento_creato_solo_se_assente(store):
+    """La primitiva usata per i brief di Promo (`growth.publish_brief`): crea, non sovrascrive."""
+    ref = ("promo_briefs", "2026w40-whois")
+
+    def create(doc):
+        def _fn(docs):
+            return ({}, False) if docs[ref] is not None else ({ref: doc}, True)
+        return _fn
+
+    first = {"campaign_id": "2026w40-whois", "status": "proposed", "created_at": "2026-09-28T08:00:00Z",
+             "brief": {"campaign_id": "2026w40-whois", "facts": ["a"]}}
+    assert store.transact([ref], create(first)) is True
+    assert store.transact([ref], create({**first, "status": "altro"})) is False
+    saved = store.get_doc(*ref)
+    assert saved["status"] == "proposed" and saved["brief"] == first["brief"]
+    assert [d["campaign_id"] for d in store.query_docs("promo_briefs", "status", "proposed")] == ["2026w40-whois"]
+
+
+def test_brief_per_promo_conservati_90_giorni(store):
+    old = {"campaign_id": "vecchio", "status": "proposed", "created_at": "2026-06-01T08:00:00Z"}
+    new = {"campaign_id": "nuovo", "status": "proposed", "created_at": "2026-09-20T08:00:00Z"}
+    for doc in (old, new):
+        store.put_doc("promo_briefs", doc["campaign_id"], doc, doc["created_at"])
+    assert store.prune_expired(NOW)["promo_briefs"] == 1
+    assert [d["campaign_id"] for d in store.query_docs("promo_briefs", "status", "proposed")] == ["nuovo"]

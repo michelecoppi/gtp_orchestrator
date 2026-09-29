@@ -9,6 +9,8 @@
    Numeri nel testo del modello che non compaiono nei dati vengono segnalati.
 3. **Brief per Promo** (bozza), se la proposta riguarda la promozione: campaign_id, pubblico, lingua,
    formato, canale, CTA e soli fatti verificati (config/promo_facts.toml). Numeri inventati: rifiutati.
+   Il brief si pubblica nello stato (`promo_briefs/{campaign_id}`, `status: proposed`, con scadenza): Promo lo
+   legge in sola lettura e lo propone a Michele sul suo bot, dove si decide se usarlo.
 Nulla viene pubblicato o attivato: proposta e brief restano bozze per Michele.
 """
 from __future__ import annotations
@@ -16,7 +18,7 @@ from __future__ import annotations
 import re
 import tomllib
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -26,10 +28,10 @@ from supervisor.llm.gateway import LLMBlocked, LLMCallFailed, LLMGateway
 from supervisor.llm.jsonout import NoJsonObject, extract_object
 from supervisor.product.metrics import ProductConfig
 from supervisor.product.sample_size import feasibility
+from supervisor.state.store import PROMO_BRIEFS as PROMO_BRIEFS
 from supervisor.state.store import StateStore
 
 PROPOSALS = "proposals"
-PROMO_BRIEFS = "promo_briefs"
 TASK = "growth_weekly"
 METRICS = ("activation_24h", "daily_completion", "hint_usage", "return_7d", "north_star_activation",
            "referral_conversion")
@@ -277,6 +279,56 @@ def promo_import_payload(brief: dict[str, Any]) -> dict[str, Any]:
     return {key: brief[key] for key in PROMO_IMPORT_FIELDS}
 
 
+# --- brief pubblicati nello stato per Promo (issue #9) ---------------------------------------------
+# Contratto con promo_studio (promo/supervisor_briefs.py): Promo legge in sola lettura i documenti
+# `promo_briefs/{campaign_id}` con `status == "proposed"`, `schema_version` supportata ed `expires_at` futuro,
+# e passa `brief` alla stessa validazione di `brief-import`. Il supervisore non scrive mai nello stato di Promo:
+# le decisioni (usato / scartato) stanno in `promo_brief_decisions` del Firestore del gioco.
+# Esempio del documento: tests/fixtures/promo_brief_doc.json (stesso file nei test di Promo).
+BRIEF_SCHEMA_VERSION = 1
+BRIEF_STATUS_PROPOSED = "proposed"
+# Entro quando Promo puo' ancora proporre il brief a Michele: due review settimanali.
+BRIEF_VALID_DAYS = 14
+
+
+def brief_doc(brief: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """Il documento `promo_briefs/{campaign_id}`: il payload di `brief-import` piu' stato e scadenza."""
+    return {
+        "schema_version": BRIEF_SCHEMA_VERSION,
+        "campaign_id": brief["campaign_id"],
+        "week": brief["week"],
+        "status": BRIEF_STATUS_PROPOSED,
+        "created_at": iso(now),
+        "expires_at": iso(now + timedelta(days=BRIEF_VALID_DAYS)),
+        "brief": promo_import_payload(brief),
+        # Contesto per chi legge, non usato da brief-import.
+        "audience": brief["audience"],
+        "proposed_start_param": brief["proposed_start_param"],
+        "primary_metric": brief["primary_metric"],
+        "fact_sources": brief["fact_sources"],
+        "warnings": brief["warnings"],
+    }
+
+
+def publish_brief(store: StateStore, brief: dict[str, Any], now: datetime) -> bool:
+    """Scrive il brief per Promo solo se non esiste: rilanciare la review (anche con --force) non lo duplica,
+    non ne cambia il contenuto gia' visto da Promo e non riporta a `proposed` un brief gia' passato oltre."""
+    ref = (PROMO_BRIEFS, brief["campaign_id"])
+    doc = brief_doc(brief, now)
+
+    def _create(docs: dict) -> tuple[dict, bool]:
+        if docs[ref] is not None:
+            return {}, False
+        return {ref: doc}, True
+
+    return bool(store.transact([ref], _create))
+
+
+def legacy_or_payload(doc: dict[str, Any]) -> dict[str, Any]:
+    """Il payload di `brief-import` di un documento, anche nel formato di prima (piatto, `state: draft`)."""
+    return doc["brief"] if isinstance(doc.get("brief"), dict) else promo_import_payload(doc)
+
+
 def weekly_review(store: StateStore, gateway: Optional[LLMGateway], facts: dict[str, Any], config: ProductConfig,
                   promo: PromoFacts, model_key: str, max_output_tokens: int, now: datetime,
                   dry_run: bool = False, force: bool = False) -> ReviewResult:
@@ -331,7 +383,8 @@ def weekly_review(store: StateStore, gateway: Optional[LLMGateway], facts: dict[
         result.warnings.append("numeri non presenti nei dati: " + ", ".join(proposal["unverified_numbers"]))
     brief = build_brief(week, proposal, promo, now)
     if brief:
-        store.put_doc(PROMO_BRIEFS, brief["campaign_id"], brief, iso(now))
+        if not publish_brief(store, brief, now):
+            result.warnings.append(f"brief {brief['campaign_id']} gia' pubblicato per Promo: lasciato com'era")
         result.brief = brief
     return result
 
@@ -367,7 +420,9 @@ def review_markdown(result: ReviewResult) -> str:
                   f"· **formato:** {b['format']}",
                   f"- **Pubblico:** {b['audience']}", f"- **Angolo:** {b['angle']}", f"- **CTA:** {b['cta']}",
                   f"- **Parametro /start:** `{b['proposed_start_param']}`",
-                  f"- **Per Promo:** `python -m promo brief-import {b['campaign_id']}.json` (file nell'artifact)",
+                  f"- **Per Promo:** pubblicato nello stato (`promo_briefs/{b['campaign_id']}`): Promo lo propone "
+                  "a Michele sul bot approvazioni con ✅ Usa / ❌ Scarta. In alternativa "
+                  f"`python -m promo brief-import {b['campaign_id']}.json` (file nell'artifact)",
                   "- **Fatti utilizzabili:**"] + [f"  - {fact}" for fact in b["facts"]]
         lines += [f"- ATTENZIONE: {w}" for w in b["warnings"]]
     return "\n".join(lines) + "\n"

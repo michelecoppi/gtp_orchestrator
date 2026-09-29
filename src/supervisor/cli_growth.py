@@ -3,7 +3,7 @@
 - `growth review`  review settimanale: metriche PostHog, una proposta del modello con fattibilita' calcolata
                    dal codice e, se serve, una bozza di brief per Promo Studio. Una sola proposta a settimana
                    (idempotente); `--dry-run` stima il costo; `--notify` manda il riassunto su Telegram.
-- `growth briefs`  elenco delle bozze di brief per Promo.
+- `growth briefs`  brief pubblicati per Promo (`promo_briefs`, status proposed) ed export in JSON.
 """
 from __future__ import annotations
 
@@ -15,7 +15,9 @@ from supervisor.collectors.http import RequestsHttp
 from supervisor.core.config import Settings
 from supervisor.llm.catalog import load_routing
 from supervisor.product.growth import (
+    BRIEF_STATUS_PROPOSED,
     PROMO_BRIEFS,
+    legacy_or_payload,
     load_promo_facts,
     promo_import_payload,
     review_markdown,
@@ -79,12 +81,17 @@ def _export(brief: dict, folder: Path) -> Path:
 
 def cmd_briefs(args, settings: Settings) -> int:
     store = open_store(settings)
-    briefs = store.query_docs(PROMO_BRIEFS, "state", "draft")
-    for brief in sorted(briefs, key=lambda b: b["created_at"]):
-        print(f"{brief['campaign_id']}: {brief['channel']} / {brief['language']} / {brief['format']} — {brief['cta']}")
+    # `state: draft` e' il formato di prima dell'issue #9 (documento piatto, mai letto da Promo).
+    docs = store.query_docs(PROMO_BRIEFS, "status", BRIEF_STATUS_PROPOSED) + store.query_docs(
+        PROMO_BRIEFS, "state", "draft")
+    for doc in sorted(docs, key=lambda b: b["created_at"]):
+        brief = legacy_or_payload(doc)
+        where = f"per Promo fino al {doc['expires_at'][:10]}" if doc.get("expires_at") else "solo file (formato vecchio)"
+        print(f"{brief['campaign_id']}: {brief['channel']} / {brief['language']} / {brief['format']} — {brief['cta']}"
+              f" [{where}]")
         if args.export:
             print(f"  -> {_export(brief, Path(args.export))} (python -m promo brief-import <file>)")
-    if not briefs:
+    if not docs:
         print("nessuna bozza di brief")
     return 0
 

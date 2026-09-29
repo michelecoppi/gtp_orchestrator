@@ -165,9 +165,10 @@ def test_review_settimanale_completa(tmp_path):
     proposal = store.get_doc(PROPOSALS, "2026-W40")
     assert proposal["kind"] == "qualitativa"  # 11 utenti-giorno sotto soglia: nessun esperimento misurabile
     assert "non disponibile o sotto soglia" in proposal["feasibility"]["reason"]
-    brief = store.get_doc(PROMO_BRIEFS, "2026w40-whois")
-    assert brief["state"] == "draft" and brief["proposed_start_param"] == "src_tiktok-2026w40-whois"
-    assert brief["facts"][0].startswith("Ogni giorno una nuova sfida") and brief["warnings"] == []
+    doc = store.get_doc(PROMO_BRIEFS, "2026w40-whois")
+    assert doc["status"] == "proposed" and doc["schema_version"] == 1 and doc["week"] == "2026-W40"
+    assert doc["expires_at"] == "2026-10-12T08:00:00Z" and doc["proposed_start_param"] == "src_tiktok-2026w40-whois"
+    assert doc["brief"]["facts"][0].startswith("Ogni giorno una nuova sfida") and doc["warnings"] == []
     text = review_markdown(result)
     assert "## Brief per Promo Studio (bozza)" in text and "numeri non presenti nei dati: 73%" in text
     # Idempotente: stessa settimana, nessuna nuova chiamata.
@@ -233,3 +234,59 @@ def test_file_per_promo_compatibile_con_brief_import(tmp_path):
             assert payload["facts"] and all(isinstance(f, str) for f in payload["facts"])
     instagram = parse_proposal(json.dumps({**GOOD, "promo": {**GOOD["promo"], "channel": "instagram"}}), promo)
     assert instagram["promo"]["channel"] == "telegram_channel"  # Promo non pubblica su Instagram
+
+
+FIXTURE = ROOT / "tests" / "fixtures" / "promo_brief_doc.json"
+
+
+def test_documento_per_promo_uguale_alla_fixture_condivisa():
+    """tests/fixtures/promo_brief_doc.json e' lo stesso file dei test di Promo (promo_studio,
+    tests/fixtures/supervisor_promo_brief.json): se cambia il formato, si aggiornano entrambi."""
+    from supervisor.product.growth import PROMO_IMPORT_FIELDS, brief_doc, build_brief
+
+    promo = load_promo_facts(ROOT / "config")
+    doc = brief_doc(build_brief("2026-W40", parse_proposal(json.dumps(GOOD), promo), promo, NOW), NOW)
+    assert doc == json.loads(FIXTURE.read_text(encoding="utf-8"))
+    assert tuple(doc["brief"]) == PROMO_IMPORT_FIELDS  # esattamente il JSON di `brief-import`
+    assert doc["campaign_id"] == doc["brief"]["campaign_id"]
+
+
+def test_brief_pubblicato_una_volta_sola(tmp_path):
+    """Rilanciare la review (anche con --force) non duplica il brief e non lo riporta a `proposed`."""
+    store = MemoryStore()
+    facts = collect_product(HogQL(FakePostHog(BASELINE), CONFIG, "k"), CONFIG).__dict__
+    llm = FakeLLM({"growth_weekly": json.dumps(GOOD)}, 800, 400)
+    gw = gateway(store, write_ai_config(tmp_path), llm)
+    promo = load_promo_facts(ROOT / "config")
+    weekly_review(store, gw, facts, CONFIG, promo, "test-model", 2500, NOW)
+    first = store.get_doc(PROMO_BRIEFS, "2026w40-whois")
+    # Un brief che non e' piu' `proposed` (per esempio ritirato a mano) non torna indietro.
+    store.put_doc(PROMO_BRIEFS, "2026w40-whois", {**first, "status": "withdrawn"}, first["created_at"])
+    later = parse_iso("2026-09-28T09:30:00Z")
+    again = weekly_review(store, gw, facts, CONFIG, promo, "test-model", 2500, later, force=True)
+    assert again.status == "proposed" and len(llm.requests) == 2
+    assert any("gia' pubblicato per Promo" in w for w in again.warnings)
+    kept = store.get_doc(PROMO_BRIEFS, "2026w40-whois")
+    assert kept["status"] == "withdrawn" and kept["created_at"] == first["created_at"]
+    assert len(store.query_docs(PROMO_BRIEFS, "campaign_id", "2026w40-whois")) == 1
+
+
+def test_elenco_dei_brief_anche_nel_formato_vecchio(tmp_path, capsys, monkeypatch):
+    from supervisor.cli_growth import cmd_briefs
+    from supervisor.core.config import Settings
+
+    store = MemoryStore()
+    new = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    store.put_doc(PROMO_BRIEFS, new["campaign_id"], new, new["created_at"])
+    legacy = {**new["brief"], "campaign_id": "2026w39-whois", "state": "draft", "created_at": "2026-09-21T08:00:00Z"}
+    store.put_doc(PROMO_BRIEFS, "2026w39-whois", legacy, legacy["created_at"])
+    monkeypatch.setattr("supervisor.cli_growth.open_store", lambda settings: store)
+
+    class Args:
+        export = str(tmp_path)
+
+    assert cmd_briefs(Args(), Settings()) == 0
+    out = capsys.readouterr().out
+    assert "2026w39-whois" in out and "per Promo fino al 2026-10-12" in out
+    exported = json.loads((tmp_path / "2026w40-whois.json").read_text(encoding="utf-8"))
+    assert exported == new["brief"]

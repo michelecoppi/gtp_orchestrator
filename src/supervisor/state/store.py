@@ -36,13 +36,16 @@ NOTIFICATIONS = "notifications"
 BUDGET = "budget"
 USAGE = "usage"
 DECISIONS = "decisions"
+PROMO_BRIEFS = "promo_briefs"
 
 # Conservazione (giorni) dei documenti operativi: `prune_expired` li cancella a piccoli lotti (comando `prune`,
 # workflow Watchdog). Su Firestore c'e' anche il campo `expire_at`, pronto per le policy TTL native se il progetto
 # ha la fatturazione attiva. La contabilita' (budget, usage), le decisioni e i task non scadono.
 # Gli eventi restano abbastanza a lungo da coprire tutto cio' che le API possono ancora restituire (le 30 run
 # piu' recenti di un workflow settimanale arrivano indietro di mesi): altrimenti tornerebbero come nuovi.
-RETENTION_DAYS = {EVENTS: 400, RUNS: 90, SNAPSHOTS: 30, NOTIFICATIONS: 30, LOCKS: 30}
+# I brief per Promo scadono per Promo dopo 14 giorni (`expires_at`), ma si tengono 90 giorni per rileggere la
+# campagna nel brief quotidiano e nella review.
+RETENTION_DAYS = {EVENTS: 400, RUNS: 90, SNAPSHOTS: 30, NOTIFICATIONS: 30, LOCKS: 30, PROMO_BRIEFS: 90}
 # I finding si conservano per un anno dalla risoluzione.
 RESOLVED_FINDING_DAYS = 365
 

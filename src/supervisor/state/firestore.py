@@ -34,6 +34,14 @@ def expire_at(collection: str, reference: Optional[str] = None) -> datetime:
     return base + timedelta(days=RETENTION_DAYS[collection])
 
 
+def with_expiry(collection: str, doc: dict, ts: str = "") -> dict:
+    """Un documento generico di una collezione con conservazione (es. `promo_briefs`) riceve `expire_at`,
+    calcolato dalla sua data (`ts` o `created_at`), come quelli scritti dai metodi dedicati."""
+    if collection not in RETENTION_DAYS or "expire_at" in doc:
+        return doc
+    return {**doc, "expire_at": expire_at(collection, ts or doc.get("created_at") or None)}
+
+
 def client(project: str) -> Any:
     from google.cloud import firestore  # type: ignore[attr-defined]
 
@@ -213,7 +221,7 @@ class FirestoreStore:
         return snap.to_dict() if snap.exists else None
 
     def put_doc(self, collection, doc_id, doc, ts=""):
-        self._col(collection).document(_doc_id(doc_id)).set(doc)
+        self._col(collection).document(_doc_id(doc_id)).set(with_expiry(collection, doc, ts))
 
     def query_docs(self, collection, field, value):
         query = self._col(collection).where(filter=_where(field, "==", value))
@@ -245,7 +253,7 @@ class FirestoreStore:
             writes, result = fn(docs)
             for (collection, doc_id), doc in writes.items():
                 target = doc_refs.get((collection, doc_id)) or self._col(collection).document(_doc_id(doc_id))
-                transaction.set(target, doc)
+                transaction.set(target, with_expiry(collection, doc))
             return result
 
         return self._transactional(_run)
