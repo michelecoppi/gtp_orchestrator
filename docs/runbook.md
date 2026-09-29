@@ -193,10 +193,10 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
    - Header:
      - `Accept: application/vnd.github+json`;
      - `Authorization: Bearer <token>`;
-     - `X-GitHub-Api-Version: 2022-11-28`;
+     - `X-GitHub-Api-Version: 2026-03-10`;
      - `Content-Type: application/json`.
    - Notifiche: mail in caso di errore.
-   - Con *Test run* la risposta attesa è **204** e in *Actions* compare un run di *Tick*.
+   - Con *Test run* la risposta attesa è **200**, con `workflow_run_id` e il link al run di *Tick*.
 3. **healthchecks.io**: *Add check*.
    - Nome `GTP Observe`.
    - *Schedule* → *Cron* `5 5-20/3 * * *`, time zone `UTC`, *Grace time* 1 ora.
