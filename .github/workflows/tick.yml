@@ -1,0 +1,64 @@
+name: Tick
+
+# Orologio unico del supervisore (docs/adr/0006-orologio-esterno.md). Gira ogni ora e decide che cosa avviare:
+# gli altri workflow non hanno piu' cron propri, solo workflow_dispatch con `scheduled=true`.
+#   - fonte principale: cron-job.org chiama l'API workflow_dispatch di questo file ogni ora al minuto 5;
+#   - riserva: il cron di GitHub qui sotto (puo' ritardare, saltare o non registrarsi affatto).
+# Se arrivano entrambi nella stessa ora, il secondo non fa nulla. I workflow avviati sono comunque idempotenti.
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write # solo per avviare gli altri workflow di questo repository
+  contents: read
+
+concurrency:
+  group: supervisor-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    if: github.repository == 'michelecoppi/gtp_orchestrator' && vars.SUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Avvio dei giri di quest'ora
+        run: |
+          since=$(date -u +%Y-%m-%dT%H:00:00Z)
+          done_runs=$(gh run list -w tick.yml -s success --created ">=$since" \
+            --json databaseId --jq "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
+          if [ "$done_runs" != "0" ]; then
+            echo "giro di quest'ora gia' avviato da un altro tick: niente da fare"; exit 0
+          fi
+          utc=$((10#$(date -u +%H))); rome=$((10#$(TZ=Europe/Rome date +%H))); dow=$(TZ=Europe/Rome date +%u)
+          echo "ora UTC $utc, ora di Roma $rome, giorno $dow"
+          at() { local x=$1; shift; for v in "$@"; do [ "$x" -eq "$v" ] && return 0; done; return 1; }
+          start() { echo "-> $*"; gh workflow run "$@"; }
+
+          # Observe ogni 3 ore di giorno; alle 08 di Roma anche il brief (lo decide observe.yml).
+          if at "$utc" 5 8 11 14 17 20 || [ "$rome" -eq 8 ]; then start observe.yml -f scheduled=true; fi
+          # Engineer ogni 2 ore di giorno (parte davvero solo con SUP_ENGINEER_ENABLED=true).
+          if at "$utc" 6 8 10 12 14 16 18; then start engineer.yml; fi
+          # Watchdog 4 volte al giorno; la pulizia la fa solo al primo giro (watchdog.yml).
+          if at "$utc" 7 11 15 19; then start watchdog.yml -f scheduled=true -f test=false; fi
+          # Review growth il lunedi' alle 08 di Roma.
+          if [ "$dow" -eq 1 ] && [ "$rome" -eq 8 ]; then start growth.yml -f scheduled=true; fi
+      - name: Avviso di errore su Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+          TG_CHAT: ${{ vars.SUP_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+        run: |
+          [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || exit 0
+          text=$(printf '❌ <b>%s fallito</b> · job %s\nIl supervisore potrebbe non aver fatto il suo giro.\n<a href="%s">Apri la run</a>' "$WORKFLOW" "$JOB" "$RUN_URL")
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$text" \
+            -d parse_mode=HTML -d disable_web_page_preview=true || true

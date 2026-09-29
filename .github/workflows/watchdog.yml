@@ -3,12 +3,15 @@ name: Watchdog
 # Il supervisore controlla se stesso (M6): ultimo giro di Observe, lock appesi, budget da riconciliare,
 # notifiche interrotte. Avvisa su Telegram solo se qualcosa non va (al massimo una volta al giorno per
 # problema). Una volta al giorno cancella anche i documenti operativi oltre la conservazione.
-# Orari UTC: 07:45, 11:45, 15:45, 19:45; Observe gira alle :07 ogni 3 ore, quindi 4 ore di silenzio sono un problema.
+# Orari (li decide tick.yml): 07, 11, 15, 19 UTC; Observe gira ogni 3 ore, quindi 4 ore di silenzio sono un problema.
+# Il watchdog gira sullo stesso orologio: se si fermano i tick, lo segnala healthchecks.io (docs/runbook.md).
 on:
-  schedule:
-    - cron: "45 7-19/4 * * *"
   workflow_dispatch:
     inputs:
+      scheduled:
+        description: "Giro pianificato (lo usa tick.yml)"
+        type: boolean
+        default: false
       test:
         description: "Manda un messaggio anche se va tutto bene (verifica del canale)"
         type: boolean
@@ -44,14 +47,14 @@ jobs:
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
       - name: Controlli
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.test }}" = "true" ]; then
+          if [ "${{ inputs.scheduled }}" != "true" ] && [ "${{ inputs.test }}" = "true" ]; then
             python -m supervisor watchdog --test
           else
             python -m supervisor watchdog
           fi
       - name: Pulizia dei documenti scaduti (una volta al giorno)
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%H)" != "07" ]; then
+          if [ "${{ inputs.scheduled }}" = "true" ] && [ "$(date -u +%H)" != "07" ]; then
             echo "pulizia solo al primo giro del giorno"; exit 0
           fi
           python -m supervisor prune

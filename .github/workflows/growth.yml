@@ -1,13 +1,16 @@
 name: Growth
 
-# Review settimanale product/growth (M4, specifica sez. 11-12): lunedi' alle 08:30 Europe/Rome.
+# Review settimanale product/growth (M4, specifica sez. 11-12): lunedi' alle 08 Europe/Rome.
 # Metriche PostHog in sola lettura, una proposta motivata (fattibilita' calcolata dal codice) e una bozza di
 # brief per Promo Studio. Nulla viene pubblicato o attivato.
+# L'orario lo decide tick.yml (lunedi' alle 08 di Roma) avviandolo con scheduled=true.
 on:
-  schedule:
-    - cron: "30 6,7 * * 1"
   workflow_dispatch:
     inputs:
+      scheduled:
+        description: "Giro pianificato (lo usa tick.yml): niente dry-run, solo alle 08 di Roma"
+        type: boolean
+        default: false
       dry_run:
         description: "Solo stima: nessuna chiamata AI, nessuna scrittura della proposta"
         type: boolean
@@ -40,10 +43,10 @@ jobs:
       SUP_TELEGRAM_BOT_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.SUP_OPENROUTER_API_KEY }}
     steps:
-      - name: Solo alle 08:30 di Roma (due cron per l'ora legale)
+      - name: Solo alle 08 di Roma
         id: gate
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Europe/Rome date +%H)" != "08" ]; then
+          if [ "${{ inputs.scheduled }}" = "true" ] && [ "$(TZ=Europe/Rome date +%H)" != "08" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -62,7 +65,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: |
           args="--out out/growth"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${{ inputs.scheduled }}" != "true" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
             args="$args --dry-run"
           else
             args="$args --notify"

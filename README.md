@@ -54,8 +54,13 @@ flowchart LR
   completamento, ritorno, North Star, referral), sempre con denominatore e stato ("sotto soglia", "non
   disponibile"). Ogni settimana una proposta con fattibilità calcolata dal codice e una bozza di brief per
   Promo, fatta solo di fatti verificati.
-- **Operatività** (M6): avviso Telegram se un workflow fallisce, watchdog che controlla il supervisore stesso,
-  pulizia giornaliera dei dati scaduti, action fissate a uno SHA con Dependabot.
+- **Operatività** (M6):
+  - avviso Telegram se un workflow fallisce;
+  - watchdog che controlla il supervisore stesso;
+  - pulizia giornaliera dei dati scaduti;
+  - action fissate a uno SHA, con Dependabot;
+  - un solo orologio (`tick.yml`), avviato da cron-job.org con il cron di GitHub come riserva;
+  - segnale di vita su healthchecks.io.
 - **Garanzie**:
   - deduplicazione degli eventi;
   - cursori che non si perdono dopo un crash;
@@ -73,6 +78,7 @@ flowchart LR
 - [ADR 0003 — budget e gateway AI](docs/adr/0003-budget-e-gateway-ai.md)
 - [ADR 0004 — worker engineering](docs/adr/0004-engineering-worker.md)
 - [ADR 0005 — prodotto e growth](docs/adr/0005-product-growth.md)
+- [ADR 0006 — orologio esterno e segnale di vita](docs/adr/0006-orologio-esterno.md)
 - [Scelta dei modelli](docs/model-selection.md)
 - [Runbook](docs/runbook.md) · [Regole per gli agenti](AGENTS.md)
 

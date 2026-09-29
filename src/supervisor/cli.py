@@ -167,7 +167,7 @@ def cmd_report(args, settings: Settings) -> int:
         notifier = TelegramNotifier(RequestsHttp(), settings.telegram_bot_token, settings.admin_chat_id)
         message = brief_message(snapshot, open_findings, events, now, decisions=decisions, budget=budget,
                                 tasks=tasks, details=run_url())
-        result = notifier.send(store, "brief", message, now)
+        result = notifier.send(store, "brief", message, now, once_per_day=args.once_per_day)
         print(f"notifica brief: {result.status} {result.detail}".rstrip())
         return 1 if result.status == "failed" else 0
     return 0
@@ -423,6 +423,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("report", help="scrive il brief dallo stato salvato")
     p.add_argument("--out", help="file Markdown di destinazione")
     p.add_argument("--notify", action="store_true", help="invia il brief su Telegram")
+    p.add_argument("--once-per-day", action="store_true",
+                   help="al massimo un brief al giorno, anche se il contenuto cambia (giri pianificati)")
     p.add_argument("--now", help=argparse.SUPPRESS)
     p.set_defaults(fn=cmd_report)
 

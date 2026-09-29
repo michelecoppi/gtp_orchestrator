@@ -6,9 +6,8 @@ name: Engineer
 #   work    -> token in sola lettura, chiavi AI; il codice patchato gira in Docker senza rete ne' segreti
 #   open-pr -> token di scrittura (contents + pull requests), nessuna chiave AI, nessun codice eseguito
 # Nessun merge: lo fa Michele dopo la review e la CI verde sullo SHA di testa.
+# Gli orari li decide tick.yml (ogni 2 ore di giorno).
 on:
-  schedule:
-    - cron: "37 6-19/2 * * *"
   workflow_dispatch:
 
 permissions:

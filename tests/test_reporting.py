@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from factory import GAME, NOW
 from supervisor.collectors.http import HttpResponse
 from supervisor.core.clock import parse_iso
@@ -73,6 +75,15 @@ def test_invio_idempotente_nello_stesso_giorno():
     assert notifier.send(store, "brief", "diverso", now).status == "sent"
     assert len(http.sent) == 2
     assert http.sent[0] == {"chat_id": "42", "text": "ciao", "disable_web_page_preview": True, "parse_mode": "HTML"}
+
+
+def test_brief_pianificato_una_volta_al_giorno_anche_se_cambia():
+    store, http = MemoryStore(), FakeTelegram()
+    notifier = TelegramNotifier(http, "123:abc", "42")
+    assert notifier.send(store, "brief", "ore 08:05", now, once_per_day=True).status == "sent"
+    assert notifier.send(store, "brief", "ore 08:07", now, once_per_day=True).status == "duplicate"
+    assert notifier.send(store, "brief", "ore 08:07", now + timedelta(days=1), once_per_day=True).status == "sent"
+    assert len(http.sent) == 2
 
 
 def test_invio_fallito_si_ritenta_e_non_espone_il_token():

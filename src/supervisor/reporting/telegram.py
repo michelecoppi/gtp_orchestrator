@@ -5,8 +5,8 @@ di Promo legge `getUpdates` e ne conferma gli offset; un secondo lettore gli rub
 su Approva/Rifiuta. Messaggi in HTML di Telegram costruiti da `reporting/messages.py`, che
 esegue l'escape di ogni testo dinamico; niente anteprime dei link.
 
-Ogni invio e' idempotente: la chiave (contenuto + giorno) si prenota nello stato prima di
-chiamare Telegram. Se l'invio fallisce la prenotazione diventa `failed` e si puo' ritentare; se
+Ogni invio e' idempotente: la chiave (contenuto + giorno, oppure solo giorno con `once_per_day`) si
+prenota nello stato prima di chiamare Telegram. Se l'invio fallisce la prenotazione diventa `failed` e si puo' ritentare; se
 il processo muore durante l'invio resta `pending` e non si ripete alla cieca.
 """
 from __future__ import annotations
@@ -39,10 +39,13 @@ class TelegramNotifier:
     def configured(self) -> bool:
         return bool(self.token and self.chat_id)
 
-    def send(self, store: StateStore, kind: str, text: str, now: datetime, html: bool = True) -> SendOutcome:
+    def send(self, store: StateStore, kind: str, text: str, now: datetime, html: bool = True,
+             once_per_day: bool = False) -> SendOutcome:
         if not self.configured:
             return SendOutcome("not_configured", "SUP_TELEGRAM_BOT_TOKEN o SUP_ADMIN_CHAT_ID mancanti")
-        key = f"{kind}-{rome_day(now)}-{stable_hash(text)[:16]}"
+        # Con `once_per_day` due giri pianificati nello stesso giorno (orologio esterno + riserva di GitHub)
+        # non mandano due brief anche se nel frattempo il contenuto e' cambiato.
+        key = f"{kind}-{rome_day(now)}" if once_per_day else f"{kind}-{rome_day(now)}-{stable_hash(text)[:16]}"
         if not store.claim_notification(key, iso(now), text[:120]):
             return SendOutcome("duplicate", key)
         try:

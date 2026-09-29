@@ -15,6 +15,7 @@
 | Secret `SUP_GITHUB_APP_KEY`, `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENROUTER_API_KEY` | **Michele** |
 | `llm smoke` e `access_verified = true` nel catalogo, poi interruttori a `true` | dopo i secret |
 | Secret `SUP_POSTHOG_PERSONAL_API_KEY` (PostHog, sola lettura delle query) per M4 | **Michele** |
+| Orologio esterno: token, cron-job.org, healthchecks.io, secret `SUP_HEALTHCHECK_URL` (sezione M6) | **Michele** |
 
 ## Setup iniziale (una volta, a cura di Michele)
 
@@ -128,7 +129,7 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
 - **Metriche**: con `SUP_POSTHOG_PERSONAL_API_KEY` impostata, Observe aggiunge al brief la sezione "Prodotto".
   Contiene volumi, attivazione per canale, completamento Daily, ritorno a 7 giorni, North Star e referral, ognuno
   con conteggi e stato della lettura. PostHog si interroga al massimo ogni 20 ore.
-- **Review settimanale**: il workflow *Growth* gira il lunedì alle 08:30, oppure a mano con `dry_run` per la
+- **Review settimanale**: il workflow *Growth* gira il lunedì alle 08, oppure a mano con `dry_run` per la
   stima del costo. Produce una proposta con i campi della specifica (sez. 11) e la fattibilità calcolata dal
   codice. Se riguarda la promozione, aggiunge una bozza di brief per Promo con `campaign_id`. Per vedere le
   bozze: `python -m supervisor growth briefs`.
@@ -149,7 +150,7 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
 - **Avvisi di errore**: ogni job di ogni workflow termina con un passo che, solo se il job fallisce, manda su
   Telegram "❌ <workflow> fallito" con il link alla run. Il messaggio parte con `curl`, quindi funziona anche se
   si è rotta l'installazione di Python. Per la CI vale solo su `main`.
-- **Watchdog** (workflow *Watchdog*, ore 07:45, 11:45, 15:45 e 19:45 UTC) controlla:
+- **Watchdog** (workflow *Watchdog*, ore 07, 11, 15 e 19 UTC) controlla:
   - che l'ultimo giro di Observe sia di meno di 4 ore fa e non sia fallito;
   - che non ci sia un lock scaduto e mai rilasciato;
   - che non ci siano chiamate AI da riconciliare da oltre un giorno;
@@ -168,9 +169,47 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   update expire_at --collection-group=<collezione> --enable-ttl`).
 - **Action fissate** a uno SHA, con la versione in commento. Dependabot propone gli aggiornamenti ogni settimana
   come PR, da rivedere come ogni modifica ai workflow.
-- **Rischio residuo**: GitHub sospende i cron dei repository pubblici dopo 60 giorni senza attività. In quel caso
-  si fermerebbe anche il watchdog. Le PR di Dependabot unite contano come attività; se arriva la mail di GitHub
-  sulla sospensione, basta riattivare i workflow da *Actions*.
+- **Orologio** ([ADR 0006](adr/0006-orologio-esterno.md)): gli orari sono tutti in `tick.yml`, che gira ogni ora e
+  avvia gli altri workflow con `scheduled=true`:
+  - Observe alle 05, 08, 11, 14, 17 e 20 UTC, più il giro delle 08 di Roma con il brief;
+  - Engineer ogni 2 ore dalle 06 alle 18 UTC;
+  - Watchdog alle 07, 11, 15 e 19 UTC;
+  - Growth il lunedì alle 08 di Roma.
+
+  Il tick lo avvia **cron-job.org** ogni ora. Il cron di GitHub in `tick.yml` fa da riserva; se arrivano
+  entrambi, il secondo non fa nulla.
+- **Segnale di vita**: ogni giro pianificato riuscito di Observe fa un ping a **healthchecks.io**. Se il ping non
+  arriva, healthchecks.io avvisa anche quando è fermo tutto GitHub, watchdog compreso.
+
+### Setup dell'orologio esterno (una volta, a cura di Michele)
+1. **Token GitHub**: *Settings → Developer settings → Fine-grained tokens → Generate new token*.
+   - Nome `gtp-orchestrator-tick`, scadenza 1 anno (segnare la data).
+   - *Repository access*: solo `michelecoppi/gtp_orchestrator`.
+   - *Permissions → Repository → Actions*: **Read and write**. Nient'altro; *Metadata* si aggiunge da solo.
+2. **cron-job.org**: *Create cronjob*.
+   - URL `https://api.github.com/repos/michelecoppi/gtp_orchestrator/actions/workflows/tick.yml/dispatches`.
+   - Orario: ogni ora al minuto 5.
+   - *Advanced*: metodo `POST`, corpo `{"ref":"main"}`.
+   - Header:
+     - `Accept: application/vnd.github+json`;
+     - `Authorization: Bearer <token>`;
+     - `X-GitHub-Api-Version: 2022-11-28`;
+     - `Content-Type: application/json`.
+   - Notifiche: mail in caso di errore.
+   - Con *Test run* la risposta attesa è **204** e in *Actions* compare un run di *Tick*.
+3. **healthchecks.io**: *Add check*.
+   - Nome `GTP Observe`.
+   - *Schedule* → *Cron* `5 5-20/3 * * *`, time zone `UTC`, *Grace time* 1 ora.
+   - *Integrations*: mail (predefinita) e, volendo, Telegram con il bot di healthchecks.io.
+   - Copiare il *ping URL* e impostarlo come secret:
+     `gh secret set SUP_HEALTHCHECK_URL -R michelecoppi/gtp_orchestrator`.
+
+- **Se si ferma l'orologio**:
+  - token scaduto: cron-job.org riceve 401 e manda una mail; si rigenera il token e lo si aggiorna nel job;
+  - cron-job.org fermo: resta la riserva di GitHub e, se manca anche quella, avvisa healthchecks.io;
+  - per un giro subito: *Actions → Tick → Run workflow*.
+- **Rischio residuo**: GitHub sospende i cron dei repository pubblici dopo 60 giorni senza commit. Con l'orologio
+  esterno conta solo per la riserva. Si riattiva da *Actions*.
 
 ## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.

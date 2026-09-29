@@ -1,14 +1,14 @@
 name: Observe
 
 # Giro di osservazione in sola lettura e brief mattutino.
-# Orari in UTC: ogni 3 ore di giorno (6 giri, ~1-2 minuti ciascuno) + brief alle 08:00 Europe/Rome
-# (due cron per l'ora legale: si esegue solo quello che cade alle 08 di Roma).
+# Gli orari li decide tick.yml (ogni 3 ore di giorno + brief alle 08 di Roma) avviandolo con scheduled=true.
 on:
-  schedule:
-    - cron: "7 5-20/3 * * *"
-    - cron: "0 6,7 * * *"
   workflow_dispatch:
     inputs:
+      scheduled:
+        description: "Giro pianificato (lo usa tick.yml): scrive, notifica, brief solo alle 08 di Roma"
+        type: boolean
+        default: false
       dry_run:
         description: "Solo lettura: non scrive stato e non invia notifiche"
         type: boolean
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   observe:
-    # I cron non girano finche' SUP_ENABLED non e' true; a mano si puo' sempre fare un dry-run.
+    # tick.yml non avvia nulla finche' SUP_ENABLED non e' true; a mano si puo' sempre fare un dry-run.
     if: github.repository == 'michelecoppi/gtp_orchestrator' && (vars.SUP_ENABLED == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,13 +53,11 @@ jobs:
       - name: Che cosa eseguire
         id: job
         run: |
-          dry="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
-          brief=false
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            brief="${{ inputs.brief }}"
-          elif [ "${{ github.event.schedule }}" = "0 6,7 * * *" ]; then
+          if [ "${{ inputs.scheduled }}" = "true" ]; then
+            dry=false; brief=false
             [ "$(TZ=Europe/Rome date +%H)" = "08" ] && brief=true
-            [ "$brief" = "true" ] || { echo "non sono le 08 a Roma: salto"; echo "skip=true" >> "$GITHUB_OUTPUT"; }
+          else
+            dry="${{ inputs.dry_run }}"; brief="${{ inputs.brief }}"
           fi
           echo "dry=$dry" >> "$GITHUB_OUTPUT"
           echo "brief=$brief" >> "$GITHUB_OUTPUT"
@@ -127,8 +125,20 @@ jobs:
           if [ "${{ steps.job.outputs.dry }}" = "true" ]; then
             python -m supervisor report --out out/brief.md
           else
-            python -m supervisor report --out out/brief.md --notify
+            # Nei giri pianificati al massimo un brief al giorno (tick esterno + riserva di GitHub).
+            once=""; [ "${{ inputs.scheduled }}" = "true" ] && once="--once-per-day"
+            python -m supervisor report --out out/brief.md --notify $once
           fi
+
+      # Segnale di vita verso healthchecks.io (docs/runbook.md): se non arriva entro l'orario atteso, avvisa
+      # Michele da fuori GitHub. Solo nei giri pianificati riusciti, cosi' un dry-run a mano non copre un buco.
+      - name: Segnale di vita
+        if: success() && inputs.scheduled && steps.job.outputs.dry != 'true'
+        env:
+          HC_URL: ${{ secrets.SUP_HEALTHCHECK_URL }}
+        run: |
+          [ -n "$HC_URL" ] || { echo "SUP_HEALTHCHECK_URL non impostato"; exit 0; }
+          curl -fsS -m 10 --retry 3 -o /dev/null "$HC_URL" || echo "ping non riuscito"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.job.outputs.brief == 'true'
