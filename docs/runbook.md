@@ -76,6 +76,7 @@ python -m supervisor replay --fixtures tests/fixtures/github_replay.json --promo
 | Triage `blocked` | Il motivo è scritto accanto: budget non approvato, modello non verificato, tetto raggiunto, `SUP_AI_ENABLED` spento. Nessuna chiamata è partita. |
 | `budget` mostra "da riconciliare" | Una chiamata è finita in timeout o in crash. Controllare sulla dashboard del provider se è stata addebitata, poi `budget --reconcile <call_id> --actual <USD>` oppure `--release`. Fino ad allora quel task non riparte. |
 | Emergenza AI | Impostare `SUP_AI_ENABLED=false` (variabile del repository): osservazione e report continuano. |
+| Avviso "Contratto promo_posts" nella run di *Growth* | Lo schema di Promo è cambiato o GitHub non rispondeva: vedere [Contratto con Promo](#contratto-con-promo-promo_posts). |
 
 ## Attivare l'AI (M2)
 
@@ -179,6 +180,23 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
 - **Proposte per gli altri repository**: `docs/proposals/game-campaign-id.md` e
   `docs/proposals/promo-brief-intake.md`, aperte il 29/09/2026 come [gioco #218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218) e
   [promo_studio #1](https://github.com/michelecoppi/promo_studio/issues/1). Nuove proposte si aprono solo dopo averle approvate.
+
+## Contratto con Promo: `promo_posts`
+
+Il collector Promo legge `promo_posts` secondo lo schema pubblicato da Promo Studio
+(`docs/schemas/promo_post.v1.json`, [issue #11](https://github.com/michelecoppi/gtp_orchestrator/issues/11)).
+- **Copia fissata**: `tests/contracts/promo_post.v1.json`, con `promo_post.v1.lock.json` accanto (repository,
+  percorso, SHA del commit di Promo, sha256 della copia). I test (`tests/test_promo_contract.py`, senza rete)
+  validano le fixture contro la copia e controllano che i campi letti dal collector (`POST_FIELDS`,
+  `HISTORY_FIELDS` in `collectors/promo.py`) e gli stati (`STATUSES`) siano nello schema.
+- **Controllo del cambio**: `python -m supervisor contracts check` confronta la copia con `main` di Promo
+  (API GitHub in sola lettura, repo pubblico). Esce con 0 se coincide, 1 se è cambiata, se è comparsa una
+  `promo_post.v2.json` o se GitHub non risponde. Gira ogni lunedì come passo **non bloccante** del workflow
+  *Growth*: se fallisce lascia un avviso (warning e riepilogo della run), la review va avanti.
+- **Riallinearsi**: su un branch, `python -m supervisor contracts check --update` riscrive copia e lock, poi
+  `python -m pytest -q` dice cosa non torna (fixture, `POST_FIELDS`, stati). Se lo schema è cambiato solo nei
+  campi che il supervisore non legge, basta la PR con la copia nuova; altrimenti si adegua il collector nella
+  stessa PR. `--ref <branch>` confronta con un branch di Promo prima del merge.
 
 ## Operatività e recupero (M6)
 

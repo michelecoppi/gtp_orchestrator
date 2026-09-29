@@ -77,5 +77,26 @@ def github_fixtures(repo: str = GAME, default_branch: str = "main", head_sha: st
 
 
 def post(post_id: str, status: str = "draft", created: str = "2026-09-26T07:00:00Z", **extra) -> dict:
-    return {"id": post_id, "status": status, "created_at": created, "format": "who_is", "language": "it",
-            "channel": "telegram_channel", "history": [], **extra}
+    """Un documento di `promo_posts` conforme a tests/contracts/promo_post.v1.json (come lo scrive Promo)."""
+    day = created[:10]
+    doc: dict = {
+        "id": post_id, "status": status, "format": "who_is", "language": "it", "channel": "telegram_channel",
+        "created_at": created, "created_for": day, "scheduled_for": f"{day}T10:00:00Z", "published_at": None,
+        "external_url": None, "error": "", "attempts": 0,
+        "history": [{"from": None, "to": "draft", "by": "scheduler", "at": created}],
+    }
+    if status != "draft":
+        doc.update(approved_at=f"{day}T08:00:00Z", approved_by="michele")
+        doc["history"].append({"from": "draft", "to": "approved", "by": "michele", "at": f"{day}T08:00:00Z"})
+    if status == "rejected":
+        doc.update(rejected_at=f"{day}T08:30:00Z", rejected_by="michele")
+    elif status == "published":
+        doc.update(published_at=f"{day}T10:00:00Z", external_url=f"https://t.me/gtp_promo/{post_id}")
+    elif status == "failed":
+        doc.update(error="HTTP 500", attempts=1)
+    if status in ("rejected", "published", "failed"):
+        by = "michele" if status == "rejected" else "publisher"
+        at = doc.get("rejected_at") or f"{day}T10:00:00Z"
+        doc["history"].append({"from": "approved", "to": status, "by": by, "at": at})
+    doc.update(extra)
+    return doc

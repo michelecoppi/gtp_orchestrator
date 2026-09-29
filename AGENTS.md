@@ -27,4 +27,7 @@ mantenere le garanzie che lo rendono affidabile.
 - Un nuovo backend di stato deve superare `tests/test_store_contract.py`.
 - Un nuovo collector implementa `collectors/base.py::Collector`, un cursore per flusso, nessuna rete nei test
   (`FixtureHttp`).
+- Il contratto con Promo (`tests/contracts/promo_post.v1.json` e il suo `.lock.json`) non si modifica a mano:
+  si aggiorna con `python -m supervisor contracts check --update`; un campo nuovo letto dal collector va anche
+  in `POST_FIELDS` e deve esistere nello schema di Promo.
 - Le decisioni architetturali vanno in `docs/adr/`.

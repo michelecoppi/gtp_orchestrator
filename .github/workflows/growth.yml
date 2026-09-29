@@ -56,6 +56,22 @@ jobs:
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -r requirements-ai.txt -e .
         if: steps.gate.outputs.skip != 'true'
+      # Contratto di promo_posts (issue #11): avvisa se lo schema su main di Promo non coincide piu' con la copia
+      # in tests/contracts. Solo lettura, nessun segreto; non blocca la review: il riallineamento e' una PR.
+      - name: Contratto promo_posts
+        if: steps.gate.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          out=$(python -m supervisor contracts check 2>&1) || status=$?
+          echo "$out"
+          if [ "$status" -ne 0 ]; then
+            echo "::warning title=Contratto promo_posts::$(echo "$out" | head -1)"
+            { echo "### Contratto promo_posts"; echo; echo "$out"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
       - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         if: steps.gate.outputs.skip != 'true'
         with:

@@ -1,3 +1,4 @@
+from factory import post as factory_post
 from supervisor.collectors.promo import PromoCollector, StaticPostReader
 from supervisor.core.clock import parse_iso
 from supervisor.core.config import PromoConfig
@@ -9,8 +10,11 @@ def facts(posts, now):
 
 
 def post(pid, day, status="draft", published_at=None):
-    return {"id": pid, "status": status, "created_for": day, "created_at": f"{day}T06:37:00Z",
-            "scheduled_for": f"{day}T10:00:00Z", "published_at": published_at}
+    """Conforme a tests/contracts/promo_post.v1.json (vedi test_promo_contract.py)."""
+    doc = factory_post(pid, status, f"{day}T06:37:00Z")
+    if published_at:
+        doc["published_at"] = published_at
+    return doc
 
 
 YESTERDAY = [post("y1", "2026-09-28", "published", "2026-09-28T10:23:00Z")]

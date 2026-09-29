@@ -2,31 +2,69 @@
  {
   "id": "p1",
   "status": "draft",
-  "created_at": "2026-09-26T07:00:00Z",
   "format": "who_is",
   "language": "it",
   "channel": "telegram_channel",
-  "history": []
+  "created_at": "2026-09-26T07:00:00Z",
+  "created_for": "2026-09-26",
+  "scheduled_for": "2026-09-26T10:00:00Z",
+  "published_at": null,
+  "approved_at": null,
+  "approved_by": null,
+  "external_id": null,
+  "external_url": null,
+  "error": "",
+  "attempts": 0,
+  "history": [
+   {"from": null, "to": "draft", "by": "scheduler", "at": "2026-09-26T07:00:00Z"}
+  ]
  },
  {
   "id": "p2",
   "status": "published",
-  "created_at": "2026-09-26T07:00:00Z",
   "format": "who_is",
   "language": "it",
   "channel": "telegram_channel",
-  "history": [],
-  "published_at": "2026-09-27T10:00:00Z"
+  "created_at": "2026-09-27T06:37:00Z",
+  "created_for": "2026-09-27",
+  "scheduled_for": "2026-09-27T10:00:00Z",
+  "published_at": "2026-09-27T10:00:00Z",
+  "approved_at": "2026-09-27T08:00:00Z",
+  "approved_by": "michele",
+  "approval_message_id": 101,
+  "external_id": "@gtp_promo:42",
+  "external_url": "https://t.me/gtp_promo/42",
+  "error": "",
+  "attempts": 1,
+  "publishing_since": null,
+  "history": [
+   {"from": null, "to": "draft", "by": "scheduler", "at": "2026-09-27T06:37:00Z"},
+   {"from": "draft", "to": "approved", "by": "michele", "at": "2026-09-27T08:00:00Z"},
+   {"from": "approved", "to": "published", "by": "publisher", "at": "2026-09-27T10:00:00Z"}
+  ]
  },
  {
   "id": "p3",
   "status": "failed",
-  "created_at": "2026-09-26T07:00:00Z",
   "format": "who_is",
   "language": "it",
   "channel": "telegram_channel",
-  "history": [],
+  "created_at": "2026-09-26T07:00:00Z",
+  "created_for": "2026-09-26",
+  "scheduled_for": "2026-09-26T10:00:00Z",
+  "published_at": null,
+  "approved_at": "2026-09-26T08:00:00Z",
+  "approved_by": "michele",
+  "external_id": null,
+  "external_url": null,
+  "error": "HTTP 500",
   "attempts": 2,
-  "error": "HTTP 500"
+  "publishing_since": null,
+  "history": [
+   {"from": null, "to": "draft", "by": "scheduler", "at": "2026-09-26T07:00:00Z"},
+   {"from": "draft", "to": "approved", "by": "michele", "at": "2026-09-26T08:00:00Z"},
+   {"from": "approved", "to": "failed", "by": "publisher", "at": "2026-09-26T10:00:00Z", "note": "HTTP 500"},
+   {"from": "failed", "to": "failed", "by": "publisher", "at": "2026-09-26T10:30:00Z", "note": "HTTP 500"}
+  ]
  }
 ]
