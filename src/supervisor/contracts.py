@@ -98,7 +98,9 @@ def sha256_of(path: Path) -> str:
 
 
 def _write_lock(lock: dict, name: str, directory: Path) -> None:
-    lock_path(name, directory).write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+    # Fine riga LF anche su Windows, come nel repository.
+    text = json.dumps(lock, indent=2) + "\n"
+    lock_path(name, directory).write_text(text, encoding="utf-8", newline="\n")
 
 
 def _headers(token: str) -> dict:
@@ -262,7 +264,7 @@ def notify(results: list[Check], store, notifier, now: datetime, details: str = 
 def write_report(results: list[Check], path: Path, now: datetime) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = {"checked_at": iso(now), "results": [r.to_dict() for r in results]}
-    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def read_report(path: Path) -> list[Check]:

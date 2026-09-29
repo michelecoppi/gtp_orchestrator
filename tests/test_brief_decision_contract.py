@@ -40,6 +40,7 @@ def test_la_copia_dello_schema_e_quella_registrata_nel_lock():
     assert re.fullmatch(r"[0-9a-f]{40}", lock["commit"]), "serve lo SHA completo del commit di Promo"
     assert contracts.sha256_of(ROOT / "tests" / "contracts" / f"{NAME}.json") == lock["sha256"], (
         "copia modificata a mano: si aggiorna solo con `python -m supervisor contracts check --update`")
+    assert b"\r" not in contracts.lock_path(NAME).read_bytes(), "il lock va scritto con fine riga LF"
     Draft202012Validator.check_schema(SCHEMA)
 
 
