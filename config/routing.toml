@@ -1,5 +1,5 @@
 # Instradamento dei task verso i modelli (specifica, sez. 5.3).
-# Provider attivo: OpenRouter (una sola chiave). Le voci dirette del catalogo restano per un eventuale passaggio.
+# Scelte motivate in docs/model-selection.md (evaluation del 28-29/09/2026). Provider attivo: OpenRouter (una sola chiave). Le voci dirette del catalogo restano per un eventuale passaggio.
 # Nessun fallback automatico: un fallback paga a sua volta e richiede una decisione esplicita.
 # Se il modello non e' disponibile il task si rinvia e il report deterministico resta valido.
 

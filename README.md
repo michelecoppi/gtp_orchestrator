@@ -71,6 +71,7 @@ flowchart LR
 - [ADR 0003 — budget e gateway AI](docs/adr/0003-budget-e-gateway-ai.md)
 - [ADR 0004 — worker engineering](docs/adr/0004-engineering-worker.md)
 - [ADR 0005 — prodotto e growth](docs/adr/0005-product-growth.md)
+- [Scelta dei modelli](docs/model-selection.md)
 - [Runbook](docs/runbook.md) · [Regole per gli agenti](AGENTS.md)
 
 ## Prossime tranche
