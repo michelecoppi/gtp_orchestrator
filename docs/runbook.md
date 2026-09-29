@@ -144,6 +144,34 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   `docs/proposals/promo-brief-intake.md`, aperte il 29/09/2026 come [gioco #218](https://github.com/michelecoppi/guess_the_player_from_the_path/issues/218) e
   [promo_studio #1](https://github.com/michelecoppi/promo_studio/issues/1). Nuove proposte si aprono solo dopo averle approvate.
 
+## Operatività e recupero (M6)
+
+- **Avvisi di errore**: ogni job di ogni workflow termina con un passo che, solo se il job fallisce, manda su
+  Telegram "❌ <workflow> fallito" con il link alla run. Il messaggio parte con `curl`, quindi funziona anche se
+  si è rotta l'installazione di Python. Per la CI vale solo su `main`.
+- **Watchdog** (workflow *Watchdog*, ore 07:45, 11:45, 15:45 e 19:45 UTC) controlla:
+  - che l'ultimo giro di Observe sia di meno di 4 ore fa e non sia fallito;
+  - che non ci sia un lock scaduto e mai rilasciato;
+  - che non ci siano chiamate AI da riconciliare da oltre un giorno;
+  - che non ci siano notifiche interrotte.
+
+  Avvisa solo se qualcosa non va, al massimo una volta al giorno per problema. Per provare il canale: *Run
+  workflow* con `test` attivo, che manda "✅ Tutto regolare".
+- **Pulizia**: una volta al giorno `python -m supervisor prune` cancella i documenti operativi scaduti:
+  - eventi dopo 400 giorni;
+  - run dopo 90 giorni;
+  - snapshot e notifiche dopo 30 giorni;
+  - finding risolti dopo un anno.
+
+  Budget, usage, decisioni e task si tengono. Ogni documento ha anche `expire_at`: se il progetto GCP avrà la
+  fatturazione attiva, si possono accendere le policy TTL native di Firestore (`gcloud firestore fields ttls
+  update expire_at --collection-group=<collezione> --enable-ttl`).
+- **Action fissate** a uno SHA, con la versione in commento. Dependabot propone gli aggiornamenti ogni settimana
+  come PR, da rivedere come ogni modifica ai workflow.
+- **Rischio residuo**: GitHub sospende i cron dei repository pubblici dopo 60 giorni senza attività. In quel caso
+  si fermerebbe anche il watchdog. Le PR di Dependabot unite contano come attività; se arriva la mail di GitHub
+  sulla sospensione, basta riattivare i workflow da *Actions*.
+
 ## Costi attesi
 - Actions (repository privato): circa 7 giri al giorno × 1–2 minuti ≈ 200–400 minuti al mese.
 - Firestore: poche centinaia di scritture al giorno, entro la quota gratuita (da verificare sul billing).

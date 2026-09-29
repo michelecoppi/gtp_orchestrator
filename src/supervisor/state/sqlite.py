@@ -73,6 +73,11 @@ class SQLiteStore(DocStore):
         with self._thread_lock:
             self._conn.execute("DELETE FROM documents WHERE collection = ? AND id = ?", (collection, doc_id))
 
+    def _scan_with_ids(self, collection):
+        with self._thread_lock:
+            rows = self._conn.execute("SELECT id, ts, data FROM documents WHERE collection = ?", (collection,))
+            return [(r[0], r[1], json.loads(r[2])) for r in rows.fetchall()]
+
     def _scan(self, collection, ts_from=None):
         with self._thread_lock:
             if ts_from is None:

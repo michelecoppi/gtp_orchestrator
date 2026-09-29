@@ -1,37 +1,38 @@
-name: Budget
+name: Watchdog
 
-# Consultazione e riconciliazione manuale del budget AI (docs/adr/0003). Serve quando una chiamata e' finita
-# con esito incerto e si e' verificato (log del run, dashboard del provider) se e' stata addebitata o no.
+# Il supervisore controlla se stesso (M6): ultimo giro di Observe, lock appesi, budget da riconciliare,
+# notifiche interrotte. Avvisa su Telegram solo se qualcosa non va (al massimo una volta al giorno per
+# problema). Una volta al giorno cancella anche i documenti operativi oltre la conservazione.
+# Orari UTC: 07:45, 11:45, 15:45, 19:45; Observe gira alle :07 ogni 3 ore, quindi 4 ore di silenzio sono un problema.
 on:
+  schedule:
+    - cron: "45 7-19/4 * * *"
   workflow_dispatch:
     inputs:
-      namespace:
-        description: "vuoto = budget operativo, eval = evaluation"
-        type: choice
-        options: ["", "eval"]
-        default: ""
-      action:
-        description: "show = riepilogo; release-open = rilascia tutte le prenotazioni aperte (non addebitate)"
-        type: choice
-        options: [show, release-open]
-        default: show
-      reason:
-        description: "Evidenza della riconciliazione (obbligatoria per release-open)"
-        type: string
-        default: ""
+      test:
+        description: "Manda un messaggio anche se va tutto bene (verifica del canale)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: supervisor-watchdog
+  cancel-in-progress: false
+
 jobs:
-  budget:
-    if: github.repository == 'michelecoppi/gtp_orchestrator'
+  watchdog:
+    if: github.repository == 'michelecoppi/gtp_orchestrator' && (vars.SUP_ENABLED == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
+      SUP_ENABLED: ${{ vars.SUP_ENABLED }}
       SUP_STORE: firestore
       SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
+      SUP_ADMIN_CHAT_ID: ${{ vars.SUP_ADMIN_CHAT_ID }}
+      SUP_TELEGRAM_BOT_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -41,15 +42,19 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
-      - name: Budget
-        env:
-          NAMESPACE: ${{ inputs.namespace }}
-          REASON: ${{ inputs.reason }}
+      - name: Controlli
         run: |
-          if [ "${{ inputs.action }}" = "release-open" ]; then
-            python -m supervisor budget --namespace "$NAMESPACE" --release-open --reason "$REASON"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.test }}" = "true" ]; then
+            python -m supervisor watchdog --test
+          else
+            python -m supervisor watchdog
           fi
-          python -m supervisor budget --namespace "$NAMESPACE" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Pulizia dei documenti scaduti (una volta al giorno)
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%H)" != "07" ]; then
+            echo "pulizia solo al primo giro del giorno"; exit 0
+          fi
+          python -m supervisor prune
       # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
       # e' proprio cio' che si e' rotto). Nessun effetto se il job riesce o viene annullato.
       - name: Avviso di errore su Telegram

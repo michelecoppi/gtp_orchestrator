@@ -7,8 +7,10 @@ scarta i duplicati. Lock e notifiche passano da transazioni.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from supervisor.core.clock import parse_iso
 from supervisor.core.models import Event, Finding, Run
 from supervisor.state.store import (
     CURSORS,
@@ -16,12 +18,20 @@ from supervisor.state.store import (
     FINDINGS,
     LOCKS,
     NOTIFICATIONS,
+    RESOLVED_FINDING_DAYS,
+    RETENTION_DAYS,
     RUNS,
     SNAPSHOTS,
     lock_doc,
     lock_is_free,
     snapshot_doc,
 )
+
+
+def expire_at(collection: str, reference: Optional[str] = None) -> datetime:
+    """Scadenza (Timestamp) per la policy TTL di Firestore, calcolata dalla data del documento."""
+    base = parse_iso(reference) if reference else datetime.now(timezone.utc)
+    return base + timedelta(days=RETENTION_DAYS[collection])
 
 
 def client(project: str) -> Any:
@@ -63,7 +73,8 @@ class FirestoreStore:
         inserted = []
         for event in events:
             try:
-                self._col(EVENTS).document(event.dedupe_key).create(event.to_dict())
+                self._col(EVENTS).document(event.dedupe_key).create(
+                    {**event.to_dict(), "expire_at": expire_at(EVENTS, event.received_at)})
                 inserted.append(event)
             except AlreadyExists:
                 pass
@@ -119,7 +130,8 @@ class FirestoreStore:
                 snap = ref.get(transaction=transaction)
                 if not snap.exists or snap.to_dict().get("resolved_at") is not None:
                     return False
-                transaction.update(ref, {"resolved_at": at})
+                transaction.update(ref, {"resolved_at": at,
+                                         "expire_at": parse_iso(at) + timedelta(days=RESOLVED_FINDING_DAYS)})
                 return True
 
             if self._transactional(_resolve):
@@ -128,7 +140,7 @@ class FirestoreStore:
 
     # --- run e snapshot --------------------------------------------------------------------
     def save_run(self, run):
-        self._col(RUNS).document(run.id).set(run.to_dict())
+        self._col(RUNS).document(run.id).set({**run.to_dict(), "expire_at": expire_at(RUNS, run.started_at)})
 
     def last_run(self):
         from google.cloud import firestore  # type: ignore[attr-defined]
@@ -137,7 +149,8 @@ class FirestoreStore:
         return Run.from_dict(docs[0].to_dict()) if docs else None
 
     def save_snapshot(self, run_id, at, reports):
-        self._col(SNAPSHOTS).document(run_id).set(snapshot_doc(run_id, at, reports))
+        self._col(SNAPSHOTS).document(run_id).set({**snapshot_doc(run_id, at, reports),
+                                                   "expire_at": expire_at(SNAPSHOTS, at)})
 
     def latest_snapshot(self):
         from google.cloud import firestore  # type: ignore[attr-defined]
@@ -154,7 +167,7 @@ class FirestoreStore:
             snap = ref.get(transaction=transaction)
             if not lock_is_free(snap.to_dict() if snap.exists else None, owner, now):
                 return False
-            transaction.set(ref, lock_doc(owner, ttl_seconds, now))
+            transaction.set(ref, {**lock_doc(owner, ttl_seconds, now), "expire_at": expire_at(LOCKS)})
             return True
 
         return self._transactional(_acquire)
@@ -181,7 +194,8 @@ class FirestoreStore:
             snap = ref.get(transaction=transaction)
             if snap.exists and snap.to_dict().get("status") != "failed":
                 return False
-            transaction.set(ref, {"key": key, "status": "pending", "claimed_at": at, "summary": summary})
+            transaction.set(ref, {"key": key, "status": "pending", "claimed_at": at, "summary": summary,
+                                  "expire_at": expire_at(NOTIFICATIONS, at)})
             return True
 
         return self._transactional(_claim)
@@ -204,6 +218,20 @@ class FirestoreStore:
     def query_docs(self, collection, field, value):
         query = self._col(collection).where(filter=_where(field, "==", value))
         return [s.to_dict() for s in query.stream()]
+
+    def prune_expired(self, now, limit=500):
+        """Cancella i documenti con `expire_at` passato, a lotti (senza policy TTL, che richiede la fatturazione)."""
+        removed: dict[str, int] = {}
+        for collection in (*RETENTION_DAYS, FINDINGS):
+            query = self._col(collection).where(filter=_where("expire_at", "<", now)).limit(limit)
+            refs = [snap.reference for snap in query.stream()]
+            for start in range(0, len(refs), 400):
+                batch = self.db.batch()
+                for ref in refs[start:start + 400]:
+                    batch.delete(ref)
+                batch.commit()
+            removed[collection] = len(refs)
+        return removed
 
     def transact(self, refs, fn):
         """Letture tutte prima delle scritture, come richiede Firestore; ritentata sui conflitti."""

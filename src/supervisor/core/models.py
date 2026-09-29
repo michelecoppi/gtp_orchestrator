@@ -111,7 +111,7 @@ class Finding:
 
     @classmethod
     def from_dict(cls, data: dict) -> Finding:
-        return cls(**{k: v for k, v in data.items() if k != "id"})
+        return cls(**{k: v for k, v in data.items() if k not in ("id", "expire_at")})
 
 
 @dataclass
@@ -132,4 +132,4 @@ class Run:
 
     @classmethod
     def from_dict(cls, data: dict) -> Run:
-        return cls(**data)
+        return cls(**{k: v for k, v in data.items() if k != "expire_at"})

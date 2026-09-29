@@ -37,6 +37,15 @@ BUDGET = "budget"
 USAGE = "usage"
 DECISIONS = "decisions"
 
+# Conservazione (giorni) dei documenti operativi: `prune_expired` li cancella a piccoli lotti (comando `prune`,
+# workflow Watchdog). Su Firestore c'e' anche il campo `expire_at`, pronto per le policy TTL native se il progetto
+# ha la fatturazione attiva. La contabilita' (budget, usage), le decisioni e i task non scadono.
+# Gli eventi restano abbastanza a lungo da coprire tutto cio' che le API possono ancora restituire (le 30 run
+# piu' recenti di un workflow settimanale arrivano indietro di mesi): altrimenti tornerebbero come nuovi.
+RETENTION_DAYS = {EVENTS: 400, RUNS: 90, SNAPSHOTS: 30, NOTIFICATIONS: 30, LOCKS: 30}
+# I finding si conservano per un anno dalla risoluzione.
+RESOLVED_FINDING_DAYS = 365
+
 DocRef = tuple[str, str]
 # Funzione di una transazione: riceve i documenti letti (None se assenti) e restituisce le scritture
 # ({ref: documento}) e il risultato. Se solleva un'eccezione non si scrive nulla.
@@ -92,6 +101,8 @@ class StateStore(Protocol):
     def query_docs(self, collection: str, field: str, value: Any) -> list[dict]: ...
 
     def transact(self, refs: list[DocRef], fn: TransactFn) -> Any: ...
+
+    def prune_expired(self, now: datetime, limit: int = 500) -> dict[str, int]: ...
 
 
 def snapshot_doc(run_id: str, at: str, reports: list[SourceReport]) -> dict:
@@ -254,6 +265,30 @@ class DocStore:
     def query_docs(self, collection, field, value):
         return [d for d in self._scan(collection) if d.get(field) == value]
 
+    def prune_expired(self, now, limit=500):
+        """Cancella i documenti oltre la conservazione; al massimo `limit` per collezione e per giro."""
+        removed: dict[str, int] = {}
+        for collection, days in RETENTION_DAYS.items():
+            cutoff = iso(now - timedelta(days=days))
+            docs = self._scan_with_ids(collection)
+            expired = [doc_id for doc_id, ts, _ in docs if ts and ts < cutoff][:limit]
+            if collection == LOCKS:
+                expired = [doc_id for doc_id, _, doc in docs
+                           if doc.get("lease_until", "9999") < cutoff][:limit]
+            for doc_id in expired:
+                self._delete(collection, doc_id)
+            removed[collection] = len(expired)
+        cutoff = iso(now - timedelta(days=RESOLVED_FINDING_DAYS))
+        old = [doc_id for doc_id, _, doc in self._scan_with_ids(FINDINGS)
+               if doc.get("resolved_at") and doc["resolved_at"] < cutoff][:limit]
+        for doc_id in old:
+            self._delete(FINDINGS, doc_id)
+        removed[FINDINGS] = len(old)
+        return removed
+
+    def _scan_with_ids(self, collection: str) -> list[tuple[str, str, dict]]:
+        raise NotImplementedError
+
     def transact(self, refs, fn):
         with self._atomic():
             docs = {ref: self._get(*ref) for ref in refs}
@@ -288,3 +323,6 @@ class MemoryStore(DocStore):
     def _scan(self, collection, ts_from=None):
         items = list(self._docs.get(collection, {}).values())
         return [copy.deepcopy(doc) for ts, doc in items if ts_from is None or ts >= ts_from]
+
+    def _scan_with_ids(self, collection):
+        return [(doc_id, ts, copy.deepcopy(doc)) for doc_id, (ts, doc) in list(self._docs.get(collection, {}).items())]

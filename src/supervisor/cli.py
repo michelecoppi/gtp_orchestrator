@@ -326,6 +326,42 @@ def _ai_checks(settings: Settings) -> list[tuple[str, bool, str]]:
     return checks
 
 
+def cmd_watchdog(args, settings: Settings) -> int:
+    """Controlli sul supervisore stesso; avvisa su Telegram al massimo una volta al giorno per problema."""
+    from supervisor.core import watchdog
+
+    if not settings.enabled and not args.test:
+        print("SUP_ENABLED=false: watchdog inattivo")
+        return 0
+    store = open_store(settings)
+    now = _now(args)
+    budget = load_budget(settings.config_dir)
+    ledgers = [BudgetLedger(store, budget.limits)]
+    if budget.evaluation:
+        ledgers.append(BudgetLedger(store, budget.evaluation, namespace="eval"))
+    problems = watchdog.check(store, now, args.max_age_hours, tuple(ledgers))
+    for problem in problems:
+        print(f"PROBLEMA {problem.key}: {problem.text}")
+    if not problems:
+        print("watchdog: tutto regolare")
+    text = watchdog.message(problems, run_url(), test=args.test)
+    if text:
+        result = TelegramNotifier(RequestsHttp(), settings.telegram_bot_token, settings.admin_chat_id).send(
+            store, "watchdog", text, now)
+        print(f"notifica watchdog: {result.status} {result.detail}".rstrip())
+    return 0
+
+
+def cmd_prune(args, settings: Settings) -> int:
+    if not settings.enabled:
+        print("SUP_ENABLED=false: pulizia inattiva")
+        return 0
+    removed = open_store(settings).prune_expired(_now(args), limit=args.limit)
+    total = sum(removed.values())
+    print(f"documenti scaduti cancellati: {total} " + ", ".join(f"{k} {v}" for k, v in removed.items() if v))
+    return 0
+
+
 def cmd_doctor(args, settings: Settings) -> int:
     checks: list[tuple[str, bool, str]] = []
     try:
@@ -416,6 +452,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_llm_smoke)
 
     sub.add_parser("status", help="stato interno").set_defaults(fn=cmd_status)
+
+    p = sub.add_parser("prune", help="cancella i documenti operativi oltre la conservazione (M6)")
+    p.add_argument("--limit", type=int, default=500, help="massimo per collezione e per giro")
+    p.add_argument("--now", help=argparse.SUPPRESS)
+    p.set_defaults(fn=cmd_prune)
+
+    p = sub.add_parser("watchdog", help="controlla che il supervisore giri e sia coerente (M6)")
+    p.add_argument("--max-age-hours", type=float, default=4.0, help="eta' massima dell'ultimo giro di observe")
+    p.add_argument("--test", action="store_true", help="manda un messaggio anche se va tutto bene")
+    p.add_argument("--now", help=argparse.SUPPRESS)
+    p.set_defaults(fn=cmd_watchdog)
 
     from supervisor.cli_engineer import register
     from supervisor.cli_eval import register as register_eval

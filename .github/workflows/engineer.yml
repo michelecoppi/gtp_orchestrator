@@ -35,11 +35,11 @@ jobs:
       repo: ${{ steps.claim.outputs.repo }}
       base_sha: ${{ steps.claim.outputs.base_sha }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -e .
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         id: app
         with:
           app-id: ${{ vars.SUP_GITHUB_APP_ID }}
@@ -49,7 +49,7 @@ jobs:
           permission-contents: read
           permission-issues: read
           permission-pull-requests: read
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
@@ -60,6 +60,22 @@ jobs:
         run: |
           python -m supervisor engineer scan
           python -m supervisor engineer claim
+      # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
+      # e' proprio cio' che si e' rotto). Nessun effetto se il job riesce o viene annullato.
+      - name: Avviso di errore su Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+          TG_CHAT: ${{ vars.SUP_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+        run: |
+          [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || exit 0
+          text=$(printf '❌ <b>%s fallito</b> · job %s\nIl supervisore potrebbe non aver fatto il suo giro.\n<a href="%s">Apri la run</a>' "$WORKFLOW" "$JOB" "$RUN_URL")
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$text" \
+            -d parse_mode=HTML -d disable_web_page_preview=true || true
 
   work:
     needs: claim
@@ -69,11 +85,11 @@ jobs:
     outputs:
       ready: ${{ steps.work.outputs.ready }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -r requirements-ai.txt -e .
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         id: app
         with:
           app-id: ${{ vars.SUP_GITHUB_APP_ID }}
@@ -82,7 +98,7 @@ jobs:
           repositories: guess_the_player_from_the_path
           permission-contents: read
       - name: Repository allo SHA di partenza
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ needs.claim.outputs.repo }}
           ref: ${{ needs.claim.outputs.base_sha }}
@@ -94,7 +110,7 @@ jobs:
         run: |
           python -m supervisor engineer dockerfile --repo "${{ needs.claim.outputs.repo }}" --out check.Dockerfile
           docker build -q -f check.Dockerfile -t gtp-check:latest target
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
@@ -109,13 +125,29 @@ jobs:
           python -m supervisor engineer work --task "${{ needs.claim.outputs.task_id }}" \
             --workspace target --out out --runner docker --image gtp-check:latest
           if [ -f out/patch.diff ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: engineer-${{ needs.claim.outputs.task_id }}
           path: out/
           retention-days: 7
           if-no-files-found: ignore
+      # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
+      # e' proprio cio' che si e' rotto). Nessun effetto se il job riesce o viene annullato.
+      - name: Avviso di errore su Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+          TG_CHAT: ${{ vars.SUP_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+        run: |
+          [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || exit 0
+          text=$(printf '❌ <b>%s fallito</b> · job %s\nIl supervisore potrebbe non aver fatto il suo giro.\n<a href="%s">Apri la run</a>' "$WORKFLOW" "$JOB" "$RUN_URL")
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$text" \
+            -d parse_mode=HTML -d disable_web_page_preview=true || true
 
   open-pr:
     needs: [claim, work]
@@ -123,12 +155,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -e .
       # Unico token di scrittura del sistema: branch e draft PR, solo sul repository del gioco.
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         id: app
         with:
           app-id: ${{ vars.SUP_GITHUB_APP_ID }}
@@ -139,18 +171,18 @@ jobs:
           permission-pull-requests: write
           permission-issues: read
       - name: Checkout pulito allo SHA di partenza
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ needs.claim.outputs.repo }}
           ref: ${{ needs.claim.outputs.base_sha }}
           token: ${{ steps.app.outputs.token }}
           path: target
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: engineer-${{ needs.claim.outputs.task_id }}
           path: in
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
@@ -160,3 +192,19 @@ jobs:
           SUP_GITHUB_WRITE_TOKEN: ${{ steps.app.outputs.token }}
           SUP_TELEGRAM_BOT_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
         run: python -m supervisor engineer open-pr --task "${{ needs.claim.outputs.task_id }}" --workspace target --in in
+      # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
+      # e' proprio cio' che si e' rotto). Nessun effetto se il job riesce o viene annullato.
+      - name: Avviso di errore su Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+          TG_CHAT: ${{ vars.SUP_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+        run: |
+          [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || exit 0
+          text=$(printf '❌ <b>%s fallito</b> · job %s\nIl supervisore potrebbe non aver fatto il suo giro.\n<a href="%s">Apri la run</a>' "$WORKFLOW" "$JOB" "$RUN_URL")
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$text" \
+            -d parse_mode=HTML -d disable_web_page_preview=true || true

@@ -46,14 +46,14 @@ jobs:
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Europe/Rome date +%H)" != "08" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.gate.outputs.skip != 'true'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         if: steps.gate.outputs.skip != 'true'
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -r requirements-ai.txt -e .
         if: steps.gate.outputs.skip != 'true'
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         if: steps.gate.outputs.skip != 'true'
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
@@ -70,10 +70,26 @@ jobs:
           [ "${{ inputs.force }}" = "true" ] && args="$args --force"
           python -m supervisor growth review $args
           [ -f out/growth/review.md ] && cat out/growth/review.md >> "$GITHUB_STEP_SUMMARY" || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.gate.outputs.skip != 'true'
         with:
           name: growth-${{ github.run_id }}
           path: out/growth/
           retention-days: 90
           if-no-files-found: ignore
+      # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
+      # e' proprio cio' che si e' rotto). Nessun effetto se il job riesce o viene annullato.
+      - name: Avviso di errore su Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.PROMO_APPROVAL_BOT_TOKEN }}
+          TG_CHAT: ${{ vars.SUP_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          JOB: ${{ github.job }}
+        run: |
+          [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || exit 0
+          text=$(printf '❌ <b>%s fallito</b> · job %s\nIl supervisore potrebbe non aver fatto il suo giro.\n<a href="%s">Apri la run</a>' "$WORKFLOW" "$JOB" "$RUN_URL")
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TG_CHAT" --data-urlencode "text=$text" \
+            -d parse_mode=HTML -d disable_web_page_preview=true || true

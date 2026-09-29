@@ -7,7 +7,7 @@ Supervisore di [Guess the Player from the Path](https://github.com/michelecoppi/
 [Promo Studio](https://github.com/michelecoppi/promo_studio). Osserva sviluppo e promozione, registra fatti
 verificabili, riconosce i problemi con regole deterministiche e manda a Michele un brief quotidiano.
 
-Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0–M4**:
+Il riferimento è la specifica `GTP_Supervisor_Analisi_V1.md` (28/09/2026). Sono implementate le **tranche M0–M4** e la parte operativa di M6:
 - sola lettura sui repository osservati;
 - AI solo per il triage, entro un budget approvato e con prenotazione atomica (spenta finché Michele non la attiva);
 - draft PR solo per le issue che Michele approva con l'etichetta `supervisor:fix`, senza merge automatici;
@@ -54,6 +54,8 @@ flowchart LR
   completamento, ritorno, North Star, referral), sempre con denominatore e stato ("sotto soglia", "non
   disponibile"). Ogni settimana una proposta con fattibilità calcolata dal codice e una bozza di brief per
   Promo, fatta solo di fatti verificati.
+- **Operatività** (M6): avviso Telegram se un workflow fallisce, watchdog che controlla il supervisore stesso,
+  pulizia giornaliera dei dati scaduti, action fissate a uno SHA con Dependabot.
 - **Garanzie**:
   - deduplicazione degli eventi;
   - cursori che non si perdono dopo un crash;
@@ -77,6 +79,6 @@ flowchart LR
 ## Prossime tranche
 | Fase | Contenuto |
 |---|---|
-| M5–M6 | Confronto provider, runbook operativo completo |
+| M5 | Confronto provider completo (evaluation di ottobre, con Opus 5.5) |
 
 Licenza: PolyForm Noncommercial 1.0.0 (vedi [LICENSE](LICENSE)).
