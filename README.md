@@ -31,6 +31,8 @@ flowchart LR
   - run di CI, deploy, backup e cron di Promo;
   - issue e PR;
   - stato della CI sullo SHA di testa di ogni PR aperta.
+- **Gioco in produzione**: il servizio risponde, il webhook del bot è sano e l'ultimo deploy riuscito è davvero
+  in servizio (revisione Cloud Run).
 - **Collector Promo**: conteggi della coda `promo_posts`, bozze ferme, pubblicazioni fallite, approvati non
   pubblicati.
 - **Regole**:

@@ -58,6 +58,8 @@ def build_brief(snapshot: Optional[dict], open_findings: list[Finding], events_2
             sections.append(_promo_section(report))
         elif report.kind == "posthog":
             sections.append(_product_section(report))
+        elif report.kind == "service":
+            sections.append(_service_section(report))
     if tasks:
         sections.append(_engineering_section(tasks, now))
     if budget is not None:
@@ -157,6 +159,30 @@ def _github_section(report: SourceReport, events: list[Event]) -> Section:
         f"chiuse senza merge {changes[('pull_request', 'closed')]}"
     )
     return Section(f"{facts.get('repo', report.source)} ({report.completeness})", lines)
+
+
+def _service_section(report: SourceReport) -> Section:
+    title = f"Gioco in produzione ({report.completeness})"
+    facts = report.facts
+    if not facts:
+        return Section(title, [NA])
+    service = facts.get("service") or {}
+    lines = [f"Servizio: {facts.get('url')}"]
+    if service.get("ok"):
+        lines.append(f"Risponde: si' · versione {service.get('version')} · revisione {facts.get('revision')} "
+                     f"(in servizio da {facts.get('revision_since')})")
+    else:
+        lines.append(f"Risponde: NO ({service.get('error')})")
+    webhook = facts.get("webhook") or {}
+    if not webhook.get("configured"):
+        lines.append("Webhook: non controllato (SUP_GAME_BOT_TOKEN non impostato)")
+    elif webhook.get("check_failed"):
+        lines.append(f"Webhook: {NA} ({webhook.get('error')})")
+    else:
+        lines.append(f"Webhook: {'impostato' if webhook.get('url_set') else 'NON impostato'} · in attesa "
+                     f"{webhook.get('pending')} · ultimo errore {webhook.get('last_error_at') or 'nessuno'}"
+                     + (f" ({webhook.get('last_error')})" if webhook.get("last_error") else ""))
+    return Section(title, lines)
 
 
 def _product_section(report: SourceReport) -> Section:

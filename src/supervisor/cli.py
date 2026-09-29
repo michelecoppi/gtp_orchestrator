@@ -54,6 +54,12 @@ def build_collectors(sources: Sources, settings: Settings, http: HttpClient,
     if promo_reader is None and settings.game_firestore_project:
         promo_reader = FirestorePostReader(settings.game_firestore_project, sources.promo.collection)
     collectors.append(PromoCollector(sources.promo, promo_reader))
+    if sources.service.url:
+        from supervisor.collectors.service import ServiceCollector
+
+        # Timeout piu' lungo: Cloud Run a freddo puo' metterci 10 secondi.
+        service_http = http if not isinstance(http, RequestsHttp) else RequestsHttp(timeout=30)
+        collectors.append(ServiceCollector(sources.service, service_http, settings.game_bot_token))
     try:
         from supervisor.collectors.posthog import PostHogCollector
         from supervisor.product.metrics import HogQL, load_product

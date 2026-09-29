@@ -15,6 +15,17 @@ ci_workflow = "ci.yml"
 # promo.yml lo avvia Cloud Scheduler (workflow_dispatch) con i cron di GitHub come riserva: conta ogni run.
 workflows = ["ci.yml", "promo.yml"]
 
+[service]
+# Il gioco in produzione, controllato ad ogni Observe in sola lettura (collectors/service.py):
+# GET / (version, revision = K_REVISION di Cloud Run) e getWebhookInfo del bot (SUP_GAME_BOT_TOKEN).
+name = "game"
+url = "https://guess-the-player-595902172561.europe-west1.run.app/"
+repo = "michelecoppi/guess_the_player_from_the_path"
+deploy_workflow = "deploy.yml"
+webhook_error_hours = 3
+pending_updates_max = 50
+deploy_grace_minutes = 30
+
 [promo]
 # Coda di Promo Studio nel Firestore del gioco, letta in sola lettura.
 collection = "promo_posts"

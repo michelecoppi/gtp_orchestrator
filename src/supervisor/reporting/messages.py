@@ -53,6 +53,8 @@ def subject_name(subject: str) -> str:
     short = subject.rsplit("/", 1)[-1].split(":", 1)[-1]
     if subject.startswith("posthog"):
         return "PostHog"
+    if subject.startswith("service:"):
+        return "gioco in produzione"
     return SUBJECTS.get(short, short)
 
 
@@ -68,6 +70,10 @@ def finding_title(f: Finding) -> str:
         return f"PR #{f.key.split(':', 1)[0]} senza CI verde"
     return {
         "default_branch_unexpected": "Branch di default inatteso",
+        "game_down": "Il gioco non risponde",
+        "webhook_missing": "Bot del gioco senza webhook",
+        "webhook_errors": "Errori sul webhook del bot del gioco",
+        "deploy_not_live": "Deploy riuscito ma non in produzione",
         "promo_drafts_stale": "Bozze Promo in attesa da oltre 24 ore",
         "promo_drafts_missing": "Bozze Promo di oggi mancanti",
         "promo_post_failed": "Pubblicazione Promo fallita",
@@ -140,6 +146,21 @@ def _repo_block(report: SourceReport, events: list[Event], title: str) -> str:
     if report.completeness != "completa":
         lines.append(f"⚠️ dati {esc(report.completeness)}")
     return "\n".join(lines)
+
+
+def _service_line(report: SourceReport) -> str:
+    facts = report.facts or {}
+    service = facts.get("service") or {}
+    if not facts:
+        return "In produzione: ⚠️ dati non disponibili"
+    if not service.get("ok"):
+        return f"In produzione: ❌ non risponde ({esc(service.get('error'))})"
+    webhook = facts.get("webhook") or {}
+    hook = ""
+    if webhook.get("configured") and not webhook.get("check_failed"):
+        hook = " · webhook " + ("✅" if webhook.get("url_set") and not webhook.get("pending") else
+                                 f"⚠️ {int(webhook.get('pending') or 0)} in attesa")
+    return f"In produzione: ✅ {esc(facts.get('revision'))}{hook}"
 
 
 def _promo_block(queue: Optional[SourceReport], repo: Optional[SourceReport]) -> str:
@@ -244,7 +265,9 @@ def brief_message(snapshot: Optional[dict], open_findings: list[Finding], events
     queue = next((r for r in reports.values() if r.kind == "promo"), None)
     product = next((r for r in reports.values() if r.kind == "posthog"), None)
     if game:
-        blocks.append(_repo_block(game, [e for e in events_24h if e.source == game.source], "🎮 Gioco"))
+        block = _repo_block(game, [e for e in events_24h if e.source == game.source], "🎮 Gioco")
+        live = next((r for r in reports.values() if r.kind == "service"), None)
+        blocks.append(block + ("\n" + _service_line(live) if live else ""))
     blocks.append(_promo_block(queue, promo_repo))
     if product:
         blocks.append(_product_block(product))

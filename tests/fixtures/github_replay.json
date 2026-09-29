@@ -240,5 +240,13 @@
  },
  "GET /repos/michelecoppi/promo_studio/pulls?page=1&per_page=50&state=open": {
   "body": []
+ },
+ "GET /": {
+  "status": 200,
+  "body": {
+   "message": "Bot attivo!",
+   "version": "0.1.0",
+   "revision": "guess-the-player-00164-6hg"
+  }
  }
 }

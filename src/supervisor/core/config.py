@@ -16,7 +16,8 @@ from supervisor.core.scrub import register_secrets
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG_DIR = ROOT / "config"
 STORES = ("firestore", "sqlite", "memory")
-_SECRET_FIELDS = ("github_token", "github_write_token", "telegram_bot_token", "posthog_api_key")
+_SECRET_FIELDS = ("github_token", "github_write_token", "telegram_bot_token", "posthog_api_key",
+                  "game_bot_token")
 # Chiavi dei provider AI: le legge LiteLLM dall'ambiente, qui si registrano solo presso lo scrubber.
 PROVIDER_KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "google": "GEMINI_API_KEY",
                     "openrouter": "OPENROUTER_API_KEY"}
@@ -55,9 +56,28 @@ class PromoConfig:
 
 
 @dataclass(frozen=True)
+class ServiceConfig:
+    """Il servizio del gioco in produzione (collectors/service.py). Senza `url` la sorgente non esiste."""
+    name: str = "game"
+    url: str = ""
+    repo: str = ""
+    deploy_workflow: str = "deploy.yml"
+    # Un errore del webhook piu' recente di cosi' e' un problema attuale (Observe gira ogni 3 ore).
+    webhook_error_hours: float = 3.0
+    pending_updates_max: int = 50
+    # Dopo un deploy riuscito la revisione in servizio deve cambiare entro questo margine.
+    deploy_grace_minutes: int = 30
+
+    @property
+    def source(self) -> str:
+        return f"service:{self.name}"
+
+
+@dataclass(frozen=True)
 class Sources:
     github: tuple[GitHubRepo, ...]
     promo: PromoConfig = field(default_factory=PromoConfig)
+    service: ServiceConfig = field(default_factory=ServiceConfig)
 
 
 def load_sources(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> Sources:
@@ -84,7 +104,11 @@ def load_sources(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> Sources:
         promo = PromoConfig(**raw.get("promo", {}))
     except TypeError as exc:
         raise ConfigError(f"sezione [promo] non valida: {exc}") from exc
-    return Sources(github=tuple(repos), promo=promo)
+    try:
+        service = ServiceConfig(**raw.get("service", {}))
+    except TypeError as exc:
+        raise ConfigError(f"sezione [service] non valida: {exc}") from exc
+    return Sources(github=tuple(repos), promo=promo, service=service)
 
 
 def _flag(value: Optional[str]) -> bool:
@@ -105,6 +129,8 @@ class Settings:
     telegram_bot_token: str = ""
     # Personal API Key PostHog con permesso di sola lettura delle query (M4).
     posthog_api_key: str = ""
+    # Token del bot del gioco, usato solo per getWebhookInfo (collectors/service.py).
+    game_bot_token: str = ""
     admin_chat_id: str = ""
     config_dir: str = str(DEFAULT_CONFIG_DIR)
 
@@ -122,13 +148,14 @@ class Settings:
             github_write_token=env.get("SUP_GITHUB_WRITE_TOKEN", ""),
             telegram_bot_token=env.get("SUP_TELEGRAM_BOT_TOKEN", ""),
             posthog_api_key=env.get("SUP_POSTHOG_PERSONAL_API_KEY", ""),
+            game_bot_token=env.get("SUP_GAME_BOT_TOKEN", ""),
             admin_chat_id=env.get("SUP_ADMIN_CHAT_ID", ""),
             config_dir=env.get("SUP_CONFIG_DIR") or str(DEFAULT_CONFIG_DIR),
         )
         if settings.store not in STORES:
             raise ConfigError(f"SUP_STORE non valido: {settings.store!r} (ammessi: {', '.join(STORES)})")
         register_secrets(settings.github_token, settings.github_write_token, settings.telegram_bot_token,
-                         settings.posthog_api_key,
+                         settings.posthog_api_key, settings.game_bot_token,
                          *(env.get(name) for name in PROVIDER_KEY_ENV.values()))
         return settings
 

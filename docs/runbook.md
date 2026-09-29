@@ -15,7 +15,8 @@
 | Secret `SUP_GITHUB_APP_KEY`, `PROMO_APPROVAL_BOT_TOKEN`, `SUP_OPENROUTER_API_KEY` | **Michele** |
 | `llm smoke` e `access_verified = true` nel catalogo, poi interruttori a `true` | dopo i secret |
 | Secret `SUP_POSTHOG_PERSONAL_API_KEY` (PostHog, sola lettura delle query) per M4 | **Michele** |
-| Orologio esterno: token, cron-job.org, healthchecks.io, secret `SUP_HEALTHCHECK_URL` (sezione M6) | **Michele** |
+| Orologio esterno: token, cron-job.org, healthchecks.io, secret `SUP_HEALTHCHECK_URL` (sezione M6) | fatto |
+| Secret `SUP_GAME_BOT_TOKEN` (token del bot del gioco, solo `getWebhookInfo`) | **Michele** |
 
 ## Setup iniziale (una volta, a cura di Michele)
 
@@ -146,6 +147,19 @@ Prerequisiti: AI attiva (sezione precedente) e accesso verificato a `gpt-6-sol` 
   [promo_studio #1](https://github.com/michelecoppi/promo_studio/issues/1). Nuove proposte si aprono solo dopo averle approvate.
 
 ## Operatività e recupero (M6)
+
+- **Gioco in produzione** (sezione `[service]` di `config/sources.toml`, [issue #7](https://github.com/michelecoppi/gtp_orchestrator/issues/7)).
+  Ad ogni Observe il supervisore controlla, in sola lettura:
+  - che `GET /` del servizio risponda, con due tentativi per l'avvio a freddo. Altrimenti apre `game_down`
+    (alta);
+  - `getWebhookInfo` del bot del gioco: webhook assente dà `webhook_missing`; errori nelle ultime 3 ore o
+    almeno 50 messaggi in coda danno `webhook_errors`;
+  - che dopo un `deploy.yml` riuscito la revisione in servizio (`K_REVISION`) cambi entro 30 minuti.
+    Altrimenti apre `deploy_not_live`.
+
+  Il token si imposta con `gh secret set SUP_GAME_BOT_TOKEN -R michelecoppi/gtp_orchestrator`. Il supervisore
+  lo usa solo per `getWebhookInfo`: mai `setWebhook`, `deleteWebhook` o `getUpdates`, che staccherebbero il
+  webhook del gioco. Senza token il webhook non si controlla, e il resto funziona.
 
 - **Avvisi di errore**: ogni job di ogni workflow termina con un passo che, solo se il job fallisce, manda su
   Telegram "❌ <workflow> fallito" con il link alla run. Il messaggio parte con `curl`, quindi funziona anche se

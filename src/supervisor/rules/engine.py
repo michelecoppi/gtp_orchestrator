@@ -21,8 +21,9 @@ FAILED_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
 # Una PR appena aperta ha la CI ancora in coda: la si segnala solo dopo questo margine.
 PR_CI_GRACE_HOURS = 1.0
 STATEFUL_RULES = (
-    "default_branch_unexpected", "pr_without_green_ci", "promo_drafts_stale", "promo_drafts_missing", "promo_post_failed",
-    "promo_approved_overdue", "source_unavailable", "analytics_data_quality",
+    "default_branch_unexpected", "pr_without_green_ci", "promo_drafts_stale", "promo_drafts_missing",
+    "promo_post_failed", "promo_approved_overdue", "source_unavailable", "analytics_data_quality",
+    "game_down", "webhook_missing", "webhook_errors", "deploy_not_live",
 )
 WORKFLOW_RULES = ("ci_failed", "deploy_failed", "workflow_failed")
 
@@ -120,6 +121,11 @@ def evaluate(new_events: list[Event], reports: list[SourceReport], open_findings
                 f"{post['id']} approvato ma non pubblicato (previsto {post['scheduled_for']})",
                 "media", [f"promo_posts/{post['id']}"], stateful=True)
 
+    # --- stato: gioco in produzione -----------------------------------------------------------
+    for service in reports:
+        if service.kind == "service" and service.facts:
+            _service_rules(service, by_source, now, add)
+
     # --- stato: analytics (M4) ------------------------------------------------------------------
     for analytics in reports:
         if analytics.kind != "posthog" or not analytics.ok:
@@ -138,6 +144,43 @@ def evaluate(new_events: list[Event], reports: list[SourceReport], open_findings
     return RuleOutcome(findings, _resolutions(findings, reports, open_findings, sources))
 
 
+def _service_rules(report: SourceReport, by_source: dict[str, SourceReport], now: datetime, add) -> None:
+    facts, source = report.facts, report.source
+    service = facts.get("service") or {}
+    if not service.get("ok"):
+        add("game_down", source, "down", f"Il gioco non risponde a {facts.get('url')} ({service.get('error')})",
+            "alta", [facts.get("url")], stateful=True)
+    webhook = facts.get("webhook") or {}
+    if webhook.get("configured") and not webhook.get("check_failed"):
+        if not webhook.get("url_set"):
+            add("webhook_missing", source, "missing", "Il bot del gioco non ha un webhook impostato: non riceve "
+                "i messaggi dei giocatori", "alta", [], stateful=True)
+        else:
+            last_at = str(webhook.get("last_error_at") or "")
+            recent = bool(last_at) and hours_between(last_at, now) <= float(facts.get("webhook_error_hours", 3))
+            pending = int(webhook.get("pending") or 0)
+            if recent or pending >= int(facts.get("pending_updates_max", 50)):
+                what = []
+                if recent:
+                    what.append(f"ultimo errore {last_at}: {webhook.get('last_error')}")
+                if pending:
+                    what.append(f"{pending} messaggi in attesa")
+                add("webhook_errors", source, "errors", "Webhook del bot del gioco con problemi: " + "; ".join(what),
+                    "alta" if pending >= int(facts.get("pending_updates_max", 50)) else "media", [], stateful=True)
+    # Un deploy riuscito crea una revisione nuova: se quella in servizio e' piu' vecchia del deploy, il
+    # codice nuovo non e' in produzione (deploy su un altro servizio, traffico fermo, rollback manuale).
+    since = facts.get("revision_since")
+    repo = by_source.get(f"github:{facts.get('repo')}")
+    deploy = ((repo.facts.get("workflows") or {}).get(facts.get("deploy_workflow")) if repo else None) or {}
+    if (service.get("ok") and since and deploy.get("conclusion") == "success" and deploy.get("at")
+            and deploy["at"] > since
+            and hours_between(deploy["at"], now) * 60 >= int(facts.get("deploy_grace_minutes", 30))):
+        add("deploy_not_live", source, str(deploy.get("id")),
+            f"Deploy riuscito ({str(deploy.get('head_sha'))[:7]}, {deploy['at']}) ma in produzione c'e' ancora "
+            f"la revisione {facts.get('revision')} (in servizio da {since})", "alta", [deploy.get("url")],
+            stateful=True)
+
+
 def _resolutions(current: list[Finding], reports: list[SourceReport], open_findings: list[Finding],
                  sources: Sources) -> list[str]:
     current_ids = {f.id for f in current}
@@ -145,7 +188,7 @@ def _resolutions(current: list[Finding], reports: list[SourceReport], open_findi
     subject_source = {r.repo: r.source for r in sources.github}
     subject_source["promo"] = sources.promo.source
     for source_report in reports:
-        if source_report.kind == "posthog":
+        if source_report.kind in ("posthog", "service"):
             subject_source[source_report.source] = source_report.source
     resolve = []
     for finding in open_findings:
