@@ -49,11 +49,11 @@ jobs:
       SUP_FIRESTORE_PROJECT: ${{ vars.SUP_FIRESTORE_PROJECT }}
       OPENROUTER_API_KEY: ${{ secrets.SUP_OPENROUTER_API_KEY }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -r requirements-ai.txt -e .
-      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app
         with:
           app-id: ${{ vars.SUP_GITHUB_APP_ID }}
@@ -64,14 +64,14 @@ jobs:
           permission-issues: read
       - name: Repository del gioco (storia completa)
         if: inputs.suite == 'engineering'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: michelecoppi/guess_the_player_from_the_path
           token: ${{ steps.app.outputs.token }}
           path: game
           fetch-depth: 0
           persist-credentials: false
-      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
@@ -104,7 +104,7 @@ jobs:
           [ "${{ inputs.dry_run }}" = "true" ] && args="$args --dry-run"
           python -m supervisor eval run $args
           [ -f out/eval/report.md ] && cat out/eval/report.md >> "$GITHUB_STEP_SUMMARY" || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && inputs.suite != 'smoke'
         with:
           name: eval-${{ inputs.suite }}-${{ github.run_id }}
