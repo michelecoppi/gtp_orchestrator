@@ -21,7 +21,7 @@ FAILED_CONCLUSIONS = ("failure", "timed_out", "startup_failure")
 # Una PR appena aperta ha la CI ancora in coda: la si segnala solo dopo questo margine.
 PR_CI_GRACE_HOURS = 1.0
 STATEFUL_RULES = (
-    "default_branch_unexpected", "pr_without_green_ci", "promo_drafts_stale", "promo_post_failed",
+    "default_branch_unexpected", "pr_without_green_ci", "promo_drafts_stale", "promo_drafts_missing", "promo_post_failed",
     "promo_approved_overdue", "source_unavailable", "analytics_data_quality",
 )
 WORKFLOW_RULES = ("ci_failed", "deploy_failed", "workflow_failed")
@@ -106,6 +106,11 @@ def evaluate(new_events: list[Event], reports: list[SourceReport], open_findings
                 f"{len(stale)} bozze Promo in attesa di approvazione da oltre "
                 f"{facts.get('stale_draft_hours', 24):g} ore", "bassa",
                 [f"promo_posts/{d['id']}" for d in stale[:10]], stateful=True)
+        if facts.get("drafts_missing"):
+            add("promo_drafts_missing", "promo", str(facts.get("today")),
+                f"Nessuna bozza Promo per oggi alle {facts.get('drafts_expected_by')}: il lavoro delle bozze "
+                "non e' partito o e' fallito (Cloud Scheduler, servizio promo-approvals o workflow)",
+                "media", ["promo_posts"], stateful=True)
         for post in facts.get("failed") or []:
             add("promo_post_failed", "promo", f"{post['id']}:{post['attempts']}",
                 f"Pubblicazione fallita per {post['id']} (tentativi: {post['attempts']})",

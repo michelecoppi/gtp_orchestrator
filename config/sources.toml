@@ -12,9 +12,14 @@ workflows = ["ci.yml", "deploy.yml", "backup.yml", "restore-verification.yml"]
 repo = "michelecoppi/promo_studio"
 expected_default_branch = "main"
 ci_workflow = "ci.yml"
+# promo.yml lo avvia Cloud Scheduler (workflow_dispatch) con i cron di GitHub come riserva: conta ogni run.
 workflows = ["ci.yml", "promo.yml"]
 
 [promo]
 # Coda di Promo Studio nel Firestore del gioco, letta in sola lettura.
 collection = "promo_posts"
 stale_draft_hours = 24
+# Promo prepara le bozze alle 08:37 di Roma (avvio da Cloud Scheduler): se alle 10:00 non ce n'e' nessuna
+# per oggi, e nei 3 giorni prima Promo era attivo, il supervisore apre il finding promo_drafts_missing.
+drafts_expected_by = "10:00"
+active_days = 3

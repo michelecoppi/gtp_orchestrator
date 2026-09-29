@@ -1,7 +1,11 @@
 """Collector Promo Studio, in sola lettura sulla coda `promo_posts` del Firestore del gioco.
 
-Il contratto e' quello di `promo_studio/promo/models.py` e `promo/queue.py` (stati draft,
-approved, rejected, published, failed; date ISO UTC). Il supervisore non importa codice di
+Il contratto e' quello di `promo_studio/promo/models.py`, `promo/plan.py` e `promo/queue.py` (stati
+draft, approved, rejected, published, failed; date ISO UTC; `created_for` = giorno di Roma delle bozze).
+
+Da settembre 2026 i lavori di Promo li avvia Cloud Scheduler (via il servizio `promo-approvals`), non piu'
+i cron di GitHub. Se si ferma quella catena non fallisce nessuna run da osservare. Per questo il
+supervisore controlla anche i dati: le bozze di oggi devono esistere entro `drafts_expected_by`. Il supervisore non importa codice di
 Promo e non scrive mai nella coda: approvare e pubblicare restano azioni di Michele e del
 publisher di Promo. Si leggono solo stato, date e id; caption e media non servono.
 """
@@ -11,7 +15,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import Any, Optional, Protocol
 
-from supervisor.core.clock import hours_between, iso, parse_iso
+from supervisor.core.clock import ROME, hours_between, iso, parse_iso, rome_day
 from supervisor.core.config import PromoConfig
 from supervisor.core.models import CollectResult, Event, SourceReport, StreamResult
 from supervisor.core.scrub import scrub, untrusted
@@ -66,6 +70,7 @@ class PromoCollector:
         received = iso(now)
         events = [_post_event(self.source, p, received) for p in posts if p.get("id")]
         facts = _facts(posts, now, self.config.stale_draft_hours)
+        facts.update(_daily(posts, now, self.config))
         return CollectResult([StreamResult(stream, events, {"scanned_at": received, "posts": len(posts)})],
                              SourceReport(self.source, self.kind, ok=True, facts=facts))
 
@@ -79,6 +84,28 @@ def _post_event(source: str, post: dict, received: str) -> Event:
         "format": post.get("format"), "language": post.get("language"), "channel": post.get("channel"),
         "scheduled_for": post.get("scheduled_for"), "external_url": post.get("external_url"),
     })
+
+
+def _daily(posts: list[dict], now: datetime, config: PromoConfig) -> dict[str, Any]:
+    """Bozze e pubblicazioni di oggi (giorno di Roma) e se mancano le bozze attese."""
+    today = rome_day(now)
+    earliest = rome_day(now - timedelta(days=config.active_days))
+    days = [p.get("created_for") or "" for p in posts]
+    drafts_today = sum(1 for d in days if d == today)
+    active = any(earliest <= d < today for d in days)
+    hour, minute = (int(x) for x in config.drafts_expected_by.split(":"))
+    local = now.astimezone(ROME)
+    late = (local.hour, local.minute) >= (hour, minute)
+    published_today = sum(1 for p in posts if p.get("status") == "published" and p.get("published_at")
+                          and rome_day(parse_iso(p["published_at"])) == today)
+    return {
+        "today": today,
+        "drafts_today": drafts_today,
+        "published_today": published_today,
+        "drafts_expected_by": config.drafts_expected_by,
+        # Solo se Promo era attivo nei giorni scorsi: con PROMO_ENABLED=false non ci sono bozze da attendere.
+        "drafts_missing": late and active and drafts_today == 0,
+    }
 
 
 def _facts(posts: list[dict], now: datetime, stale_hours: float) -> dict[str, Any]:

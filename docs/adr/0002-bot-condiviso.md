@@ -24,3 +24,9 @@ Quando il supervisore dovrà raccogliere approvazioni, un solo processo dovrà l
 **Deciso in M3 (ADR 0004):** opzione 3. Le approvazioni avvengono su GitHub, con l'etichetta `supervisor:fix`
 messa da Michele sulla issue e verificata dal supervisore. Il bot resta di sola notifica, con `sendMessage` e
 link alla PR, e l'unico lettore degli update rimane il `sync` di Promo.
+
+**Aggiornamento 29/09/2026.** Il bot approvazioni di Promo ora riceve i pulsanti con un **webhook** su Cloud Run
+(`promo/approval_service.py`, servizio `promo-approvals`) e non più con `getUpdates`. Per il supervisore non cambia
+nulla: usa ancora solo `sendMessage` (HTML con escape, vedi `reporting/messages.py`) e `getMe`, e non deve mai
+chiamare `setWebhook`, `deleteWebhook` o `getUpdates`, perché staccherebbe il webhook di Promo. I messaggi del
+supervisore non hanno pulsanti: il webhook di Promo cerca i post per `approval_message_id` e li ignora.

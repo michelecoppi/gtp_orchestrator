@@ -69,6 +69,7 @@ def finding_title(f: Finding) -> str:
     return {
         "default_branch_unexpected": "Branch di default inatteso",
         "promo_drafts_stale": "Bozze Promo in attesa da oltre 24 ore",
+        "promo_drafts_missing": "Bozze Promo di oggi mancanti",
         "promo_post_failed": "Pubblicazione Promo fallita",
         "promo_approved_overdue": "Post Promo approvato ma non pubblicato",
         "source_unavailable": "Dati non disponibili da una sorgente",

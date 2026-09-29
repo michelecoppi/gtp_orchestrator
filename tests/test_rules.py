@@ -79,6 +79,13 @@ def test_regole_promo():
     assert rules == ["promo_approved_overdue", "promo_drafts_stale", "promo_post_failed"]
 
 
+def test_bozze_promo_di_oggi_mancanti():
+    out = evaluate([], [promo_report(drafts_missing=True, today="2026-09-29", drafts_expected_by="10:00")], [],
+                   sources(), now, "r1")
+    assert [f.rule for f in out.findings] == ["promo_drafts_missing"]
+    assert evaluate([], [promo_report(drafts_missing=False)], [], sources(), now, "r2").findings == []
+
+
 def test_dati_mancanti_non_valgono_come_risolto():
     stale = evaluate([], [promo_report(stale_drafts=[{"id": "p1", "age_hours": 30}])], [], sources(), now,
                      "r1").findings

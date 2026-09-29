@@ -44,6 +44,10 @@ class GitHubRepo:
 class PromoConfig:
     collection: str = "promo_posts"
     stale_draft_hours: float = 24.0
+    # Ora di Roma entro cui devono esistere le bozze del giorno (Promo le prepara alle 08:37).
+    drafts_expected_by: str = "10:00"
+    # Promo e' "attivo" se ha preparato bozze in almeno uno di questi ultimi giorni.
+    active_days: int = 3
 
     @property
     def source(self) -> str:

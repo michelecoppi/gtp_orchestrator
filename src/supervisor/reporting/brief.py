@@ -184,6 +184,7 @@ def _promo_section(report: SourceReport) -> Section:
         f"Bozze in attesa da oltre {facts.get('stale_draft_hours', 24):g} ore: {len(facts.get('stale_drafts') or [])}",
         f"Pubblicazioni fallite: {len(facts.get('failed') or [])}",
         f"Approvati ma non pubblicati: {len(facts.get('approved_overdue') or [])}",
+        f"Bozze di oggi: {facts.get('drafts_today', NA)} · pubblicati oggi: {facts.get('published_today', NA)}",
         f"Pubblicati negli ultimi 7 giorni: {facts.get('published_last_7d')}",
     ])
 
