@@ -9,7 +9,8 @@ Comandi:
 - `triage`    proposte di priorita' e prossimo passo per i finding nuovi (AI, entro budget);
 - `budget`    spesa, prenotazioni e riconciliazione delle chiamate dall'esito incerto;
 - `llm smoke` verifica a pagamento minima dell'accesso a un modello del catalogo.
-- `contracts check` confronta lo schema di `promo_posts` copiato in `tests/contracts` con `main` di Promo.
+- `contracts check` confronta gli schemi di Promo copiati in `tests/contracts` (`promo_posts`,
+  `promo_brief_decisions`) con `main` di Promo; `contracts notify` avvisa su Telegram di un cambio.
 
 Con `SUP_ENABLED=false` funzionano solo `doctor`, `replay`, `contracts check` e i `--dry-run` (che
 non scrivono e non inviano nulla). Codici di uscita: 0 ok (anche con sorgenti incomplete, che il report

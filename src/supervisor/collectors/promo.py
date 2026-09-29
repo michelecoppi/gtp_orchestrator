@@ -15,6 +15,8 @@ publisher di Promo. Si leggono solo stato, date e id; caption e media non servon
 Dall'issue #9 si leggono anche le decisioni sui brief del supervisore (`promo_brief_decisions`, scritte da
 Promo quando Michele preme ✅ Usa / ❌ Scarta): servono al brief quotidiano per dire che fine ha fatto ogni
 campagna proposta. Se la lettura fallisce, i post restano validi e le decisioni risultano "non disponibili".
+Anche questa collezione ha il suo schema di Promo (`promo_brief_decision.v1.json`, issue #14), copiato e
+verificato come quello dei post.
 """
 from __future__ import annotations
 
@@ -34,8 +36,11 @@ POST_FIELDS = ("id", "status", "created_at", "created_for", "scheduled_for", "pu
 HISTORY_FIELDS = ("at",)
 # Un post approvato con `scheduled_for` passato da piu' di tanto non e' stato pubblicato.
 PUBLISH_GRACE = timedelta(hours=2)
-# Collezione di Promo (promo/supervisor_briefs.py) con l'esito dei brief del supervisore.
+# Collezione di Promo (promo/supervisor_briefs.py) con l'esito dei brief del supervisore. Il contratto e'
+# `docs/schemas/promo_brief_decision.v1.json` di Promo, copiato in `tests/contracts/` (issue #14): i campi letti
+# qui sono in `DECISION_FIELDS` e devono esistere nello schema (`tests/test_brief_decision_contract.py`).
 BRIEF_DECISIONS = "promo_brief_decisions"
+DECISION_FIELDS = ("campaign_id", "status", "asked_at", "decided_at", "imported_for")
 BRIEF_WINDOW = timedelta(days=30)
 
 

@@ -56,20 +56,21 @@ jobs:
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt -r requirements-ai.txt -e .
         if: steps.gate.outputs.skip != 'true'
-      # Contratto di promo_posts (issue #11): avvisa se lo schema su main di Promo non coincide piu' con la copia
-      # in tests/contracts. Solo lettura, nessun segreto; non blocca la review: il riallineamento e' una PR.
-      - name: Contratto promo_posts
+      # Contratti con Promo (issue #11 e #14: promo_posts e promo_brief_decisions): avvisa se uno schema su main
+      # di Promo non coincide piu' con la copia in tests/contracts. Solo lettura, nessun segreto; non blocca la
+      # review: il riallineamento e' una PR. L'esito va in out/contracts.json per l'avviso su Telegram (sotto).
+      - name: Contratti con Promo
         if: steps.gate.outputs.skip != 'true'
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           status=0
-          out=$(python -m supervisor contracts check 2>&1) || status=$?
+          out=$(python -m supervisor contracts check --report out/contracts.json 2>&1) || status=$?
           echo "$out"
           if [ "$status" -ne 0 ]; then
-            echo "::warning title=Contratto promo_posts::$(echo "$out" | head -1)"
-            { echo "### Contratto promo_posts"; echo; echo "$out"; } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Contratti con Promo::$(echo "$out" | head -1)"
+            { echo "### Contratti con Promo"; echo; echo "$out"; } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$status"
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -77,6 +78,13 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.SUP_WIF_PROVIDER }}
           service_account: ${{ secrets.SUP_WIF_SERVICE_ACCOUNT }}
+      # Schema di Promo cambiato o versione nuova: un messaggio a Michele, una volta per cambiamento (chiave
+      # prenotata nello stato). "Non verificabile" resta solo nel riepilogo. Come la review, niente invii in
+      # dry-run; non blocca la review.
+      - name: Avviso contratti su Telegram
+        if: steps.gate.outputs.skip != 'true' && (inputs.scheduled || !inputs.dry_run)
+        continue-on-error: true
+        run: python -m supervisor contracts notify --report out/contracts.json
       - name: Review
         if: steps.gate.outputs.skip != 'true'
         run: |
