@@ -24,7 +24,10 @@ def fixtures():
 def collectors(fx=None, posts=None):
     srcs = sources()
     http = FixtureHttp(fx or fixtures())
-    promo_reader = StaticPostReader(posts if posts is not None else [post("p1"), post("p2", "published")])
+    # Bozza preparata il 26 per oggi (28): vecchia (promo_drafts_stale) ma le bozze di oggi ci sono.
+    default = [post("p1", created_for="2026-09-28", scheduled_for="2026-09-28T10:00:00Z"),
+               post("p2", "published")]
+    promo_reader = StaticPostReader(posts if posts is not None else default)
     return [GitHubCollector(srcs.github[0], GitHubApi(http, "tok")), PromoCollector(srcs.promo, promo_reader)]
 
 

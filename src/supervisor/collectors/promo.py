@@ -1,7 +1,10 @@
 """Collector Promo Studio, in sola lettura sulla coda `promo_posts` del Firestore del gioco.
 
-Il contratto e' quello di `promo_studio/promo/models.py`, `promo/plan.py` e `promo/queue.py` (stati
-draft, approved, rejected, published, failed; date ISO UTC; `created_for` = giorno di Roma delle bozze).
+Il contratto e' lo schema pubblicato da Promo (`docs/schemas/promo_post.v1.json`), copiato in
+`tests/contracts/` con lo SHA del commit di origine (issue #11): stati draft, approved, rejected, published,
+failed; date ISO UTC con Z; `created_for` = giorno di Roma delle bozze. I campi letti qui sono in
+`POST_FIELDS` e `HISTORY_FIELDS`; `tests/test_promo_contract.py` controlla che siano tutti nello schema e
+`python -m supervisor contracts check` dice se lo schema su `main` di Promo e' cambiato.
 
 Da settembre 2026 i lavori di Promo li avvia Cloud Scheduler (via il servizio `promo-approvals`), non piu'
 i cron di GitHub. Se si ferma quella catena non fallisce nessuna run da osservare. Per questo il
@@ -25,6 +28,10 @@ from supervisor.core.models import CollectResult, Event, SourceReport, StreamRes
 from supervisor.core.scrub import scrub, untrusted
 
 STATUSES = ("draft", "approved", "rejected", "published", "failed")
+# Campi di `promo_posts` letti dal collector (e di `history[]`): devono esistere nello schema di Promo.
+POST_FIELDS = ("id", "status", "created_at", "created_for", "scheduled_for", "published_at", "history",
+               "attempts", "error", "format", "language", "channel", "external_url")
+HISTORY_FIELDS = ("at",)
 # Un post approvato con `scheduled_for` passato da piu' di tanto non e' stato pubblicato.
 PUBLISH_GRACE = timedelta(hours=2)
 # Collezione di Promo (promo/supervisor_briefs.py) con l'esito dei brief del supervisore.

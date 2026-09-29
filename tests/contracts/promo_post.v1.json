@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michelecoppi/promo_studio/blob/main/docs/schemas/promo_post.v1.json",
+  "title": "promo_posts/{id} (v1)",
+  "description": "Documento della coda di Promo Studio come lo scrivono promo/plan.py (make_post, publish_due), promo/queue.py (transizioni, modifica dei testi) e promo/approvals.py (approval_message_id). Lo legge in sola lettura il supervisore (michelecoppi/gtp_orchestrator, collectors/promo.py). Campi in piu' sono ammessi: Promo puo' aggiungerne senza cambiare versione. Togliere o rinominare un campo, cambiarne il tipo o cambiare gli stati richiede promo_post.v2.json e un'issue su gtp_orchestrator.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "status",
+    "format",
+    "language",
+    "channel",
+    "created_at",
+    "created_for",
+    "scheduled_for",
+    "published_at",
+    "external_url",
+    "error",
+    "attempts",
+    "history"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "<giorno_origine>-<formato>-<lingua>-<canale>, con -<campaign_id> per le bozze da brief."
+    },
+    "status": {"$ref": "#/$defs/status"},
+    "format": {"enum": ["who_is", "percent", "ladder", "journeyman", "solution"]},
+    "language": {"type": "string", "pattern": "^[a-z]{2}$"},
+    "channel": {"enum": ["tiktok", "telegram_channel", "x"]},
+    "created_at": {"$ref": "#/$defs/utc_datetime"},
+    "created_for": {"$ref": "#/$defs/day", "description": "Giorno di uscita (Europe/Rome)."},
+    "scheduled_for": {"$ref": "#/$defs/utc_datetime"},
+    "published_at": {"$ref": "#/$defs/utc_datetime_or_null"},
+    "approved_at": {"$ref": "#/$defs/utc_datetime_or_null"},
+    "approved_by": {"type": ["string", "null"]},
+    "rejected_at": {"$ref": "#/$defs/utc_datetime_or_null"},
+    "rejected_by": {"type": ["string", "null"]},
+    "edited_at": {"$ref": "#/$defs/utc_datetime_or_null"},
+    "edited_by": {"type": ["string", "null"]},
+    "publishing_since": {
+      "$ref": "#/$defs/utc_datetime_or_null",
+      "description": "Lucchetto di pubblicazione: presente solo durante e subito dopo un tentativo."
+    },
+    "external_id": {"type": ["string", "null"]},
+    "external_url": {"type": ["string", "null"]},
+    "error": {"type": "string", "description": "Vuoto se non c'e' errore."},
+    "attempts": {"type": "integer", "minimum": 0},
+    "approval_message_id": {
+      "type": ["integer", "null"],
+      "description": "Messaggio Telegram con i pulsanti di approvazione (promo/approvals.py)."
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["from", "to", "by", "at"],
+        "properties": {
+          "from": {"anyOf": [{"$ref": "#/$defs/status"}, {"type": "null"}]},
+          "to": {"$ref": "#/$defs/status"},
+          "by": {"type": "string"},
+          "at": {"$ref": "#/$defs/utc_datetime"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "source_days": {"type": "array", "items": {"type": "string"}},
+    "player_ids": {"type": "array", "items": {"type": "string"}},
+    "media_path": {"type": "string"},
+    "cover_path": {"type": "string"},
+    "media_sha256": {"type": "string"},
+    "duration": {"type": "number"},
+    "caption": {"type": "string"},
+    "hashtags": {"type": "array", "items": {"type": "string"}},
+    "pinned_comment": {"type": "string"},
+    "tracking_link": {"type": "string"},
+    "brief_id": {"type": ["string", "null"]},
+    "brief": {"type": ["object", "null"]},
+    "render_spec": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "approved"}}},
+      "then": {
+        "required": ["approved_at", "approved_by"],
+        "properties": {"approved_at": {"$ref": "#/$defs/utc_datetime"}, "approved_by": {"type": "string"}}
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "rejected"}}},
+      "then": {
+        "required": ["rejected_at", "rejected_by"],
+        "properties": {"rejected_at": {"$ref": "#/$defs/utc_datetime"}, "rejected_by": {"type": "string"}}
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "published"}}},
+      "then": {"properties": {"published_at": {"$ref": "#/$defs/utc_datetime"}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "failed"}}},
+      "then": {"properties": {"error": {"minLength": 1}}}
+    }
+  ],
+  "$defs": {
+    "status": {"enum": ["draft", "approved", "rejected", "published", "failed"]},
+    "utc_datetime": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "ISO 8601 UTC al secondo con Z, come promo/store.py::now_iso."
+    },
+    "utc_datetime_or_null": {"anyOf": [{"$ref": "#/$defs/utc_datetime"}, {"type": "null"}]},
+    "day": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+  }
+}

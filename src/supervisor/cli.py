@@ -9,9 +9,10 @@ Comandi:
 - `triage`    proposte di priorita' e prossimo passo per i finding nuovi (AI, entro budget);
 - `budget`    spesa, prenotazioni e riconciliazione delle chiamate dall'esito incerto;
 - `llm smoke` verifica a pagamento minima dell'accesso a un modello del catalogo.
+- `contracts check` confronta lo schema di `promo_posts` copiato in `tests/contracts` con `main` di Promo.
 
-Con `SUP_ENABLED=false` funzionano solo `doctor`, `replay` e i `--dry-run` (che non scrivono e
-non inviano nulla). Codici di uscita: 0 ok (anche con sorgenti incomplete, che il report
+Con `SUP_ENABLED=false` funzionano solo `doctor`, `replay`, `contracts check` e i `--dry-run` (che
+non scrivono e non inviano nulla). Codici di uscita: 0 ok (anche con sorgenti incomplete, che il report
 dichiara), 1 errore interno, 2 configurazione non valida.
 """
 from __future__ import annotations
@@ -475,10 +476,12 @@ def build_parser() -> argparse.ArgumentParser:
     from supervisor.cli_engineer import register
     from supervisor.cli_eval import register as register_eval
     from supervisor.cli_growth import register as register_growth
+    from supervisor.contracts import register as register_contracts
 
     register(sub)
     register_eval(sub)
     register_growth(sub)
+    register_contracts(sub)
     sub.add_parser("doctor", help="verifica configurazione e credenziali").set_defaults(fn=cmd_doctor)
     return parser
 
