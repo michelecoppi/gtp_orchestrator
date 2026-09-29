@@ -28,8 +28,8 @@ concurrency:
 
 jobs:
   observe:
-    # Nulla gira finche' SUP_ENABLED non e' true: niente run falliti prima del setup (GCP, GitHub App, secret).
-    if: github.repository == 'michelecoppi/gtp_orchestrator' && vars.SUP_ENABLED == 'true'
+    # I cron non girano finche' SUP_ENABLED non e' true; a mano si puo' sempre fare un dry-run.
+    if: github.repository == 'michelecoppi/gtp_orchestrator' && (vars.SUP_ENABLED == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
