@@ -150,3 +150,30 @@ def test_budget_versionato_valido_e_approvato():
     budget = load_budget("config")
     assert budget.limits.approved and budget.limits.approved_by == "Michele Coppi"
     assert micros_to_usd(budget.limits.monthly_hard) == 15.0 and micros_to_usd(budget.limits.daily_hard) == 1.0
+
+
+def test_cli_riconcilia_una_chiamata_addebitata(tmp_path, monkeypatch, capsys):
+    """Il caso del workflow Budget `reconcile`: chiamata interrotta ma addebitata dal provider."""
+    from supervisor import cli
+    from supervisor.state.sqlite import SQLiteStore
+    from supervisor.state.store import USAGE
+
+    db = tmp_path / "s.sqlite3"
+    monkeypatch.setenv("SUP_STORE", "sqlite")
+    monkeypatch.setenv("SUP_SQLITE_PATH", str(db))
+    ledger = BudgetLedger(SQLiteStore(str(db)), LIMITS, namespace="eval")
+    reserve(ledger, "eval-x#3", 0.25)
+    base = ["budget", "--namespace", "eval", "--now", "2026-09-28T09:00:00Z"]
+
+    assert cli.main([*base, "--reconcile", "eval-x#3"]) == 2
+    assert cli.main([*base, "--reconcile", "eval-x#3", "--actual", "-1"]) == 2
+    assert cli.main([*base, "--reconcile", "sconosciuta#1", "--actual", "0.1"]) == 2
+    assert "chiamata sconosciuta" in capsys.readouterr().out
+    assert cli.main([*base, "--reconcile", "eval-x#3", "--actual", "0.31", "--reason", "OpenRouter activity"]) == 0
+    assert "settled, costo 0.3100 USD" in capsys.readouterr().out
+
+    usage = SQLiteStore(str(db)).get_doc(USAGE, "eval-x#3")
+    assert usage["overrun"] and usage["note"].endswith(": OpenRouter activity")
+    assert ledger.open_reservations() == []
+    assert cli.main([*base, "--reconcile", "eval-x#3", "--actual", "0.5"]) == 0  # rilanciata: idempotente
+    assert micros_to_usd(ledger.summary(NOW)["month_actual"]) == pytest.approx(0.31)

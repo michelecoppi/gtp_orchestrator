@@ -11,12 +11,20 @@ on:
         options: ["", "eval"]
         default: ""
       action:
-        description: "show = riepilogo; release-open = rilascia tutte le prenotazioni aperte (non addebitate)"
+        description: "show = riepilogo; release-open = rilascia tutte le prenotazioni aperte (non addebitate); reconcile = chiude una chiamata addebitata"
         type: choice
-        options: [show, release-open]
+        options: [show, release-open, reconcile]
         default: show
+      call_id:
+        description: "Chiamata da chiudere (solo reconcile; la stampa show alla voce 'da riconciliare')"
+        type: string
+        default: ""
+      actual_usd:
+        description: "Costo reale in USD visto sulla dashboard del provider (solo reconcile)"
+        type: string
+        default: ""
       reason:
-        description: "Evidenza della riconciliazione (obbligatoria per release-open)"
+        description: "Evidenza della riconciliazione (obbligatoria per release-open e reconcile)"
         type: string
         default: ""
 
@@ -44,10 +52,18 @@ jobs:
       - name: Budget
         env:
           NAMESPACE: ${{ inputs.namespace }}
+          ACTION: ${{ inputs.action }}
+          CALL_ID: ${{ inputs.call_id }}
+          ACTUAL_USD: ${{ inputs.actual_usd }}
           REASON: ${{ inputs.reason }}
         run: |
-          if [ "${{ inputs.action }}" = "release-open" ]; then
+          if [ "$ACTION" = "release-open" ]; then
             python -m supervisor budget --namespace "$NAMESPACE" --release-open --reason "$REASON"
+          elif [ "$ACTION" = "reconcile" ]; then
+            if [ -z "$CALL_ID" ] || [ -z "$ACTUAL_USD" ] || [ -z "$REASON" ]; then
+              echo "reconcile richiede call_id, actual_usd e reason"; exit 2
+            fi
+            python -m supervisor budget --namespace "$NAMESPACE" --reconcile "$CALL_ID" --actual "$ACTUAL_USD"               --reason "$REASON"
           fi
           python -m supervisor budget --namespace "$NAMESPACE" | tee -a "$GITHUB_STEP_SUMMARY"
       # Se un passo fallisce: avviso diretto su Telegram (curl, senza Python: funziona anche se l'installazione
