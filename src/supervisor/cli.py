@@ -248,13 +248,21 @@ def cmd_budget(args, settings: Settings) -> int:
             print(f"rilasciata {usage['call_id']} ({micros_to_usd(usage['reserved_micros']):.4f} USD)")
         return 0
     if args.reconcile:
-        if args.release:
-            usage = ledger.release(args.reconcile, now, "riconciliata a mano: non addebitata")
-        elif args.actual is not None:
-            usage = ledger.settle(args.reconcile, usd_to_micros(args.actual), now,
-                                  note="riconciliata a mano dalla dashboard del provider")
-        else:
-            print("indicare --actual USD (costo visto sulla dashboard del provider) oppure --release")
+        evidence = f": {args.reason}" if args.reason else ""
+        try:
+            if args.release:
+                usage = ledger.release(args.reconcile, now, f"riconciliata a mano: non addebitata{evidence}")
+            elif args.actual is not None:
+                if args.actual < 0:
+                    print("--actual non puo' essere negativo")
+                    return 2
+                usage = ledger.settle(args.reconcile, usd_to_micros(args.actual), now,
+                                      note=f"riconciliata a mano dalla dashboard del provider{evidence}")
+            else:
+                print("indicare --actual USD (costo visto sulla dashboard del provider) oppure --release")
+                return 2
+        except KeyError:
+            print(f"chiamata sconosciuta: {args.reconcile}")
             return 2
         print(f"{usage['call_id']}: {usage['state']}, costo {micros_to_usd(usage.get('actual_micros') or 0):.4f} USD")
         return 0

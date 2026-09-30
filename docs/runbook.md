@@ -74,7 +74,7 @@ python -m supervisor replay --fixtures tests/fixtures/github_replay.json --promo
 | Finding che non si chiude | Le regole di stato si chiudono solo con dati completi della sorgente; quelle di workflow con una run verde successiva sul branch di default. |
 | Emergenza | Impostare `SUP_ENABLED=false`: resteranno attivi solo `doctor` e i dry-run. |
 | Triage `blocked` | Il motivo è scritto accanto: budget non approvato, modello non verificato, tetto raggiunto, `SUP_AI_ENABLED` spento. Nessuna chiamata è partita. |
-| `budget` mostra "da riconciliare" | Una chiamata è finita in timeout o in crash. Controllare sulla dashboard del provider se è stata addebitata, poi `budget --reconcile <call_id> --actual <USD>` oppure `--release`. Fino ad allora quel task non riparte. |
+| `budget` mostra "da riconciliare" | Una chiamata è finita in timeout o in crash. Controllare sulla dashboard del provider se è stata addebitata, poi `budget --reconcile <call_id> --actual <USD>` oppure `--release` (per le evaluation aggiungere `--namespace eval`). Senza credenziali locali: workflow *Budget* con `action = reconcile` (call_id, costo e evidenza) se addebitata, `release-open` se non lo è. Fino ad allora quel task non riparte e il watchdog lo segnala ogni giorno. |
 | Emergenza AI | Impostare `SUP_AI_ENABLED=false` (variabile del repository): osservazione e report continuano. |
 | Avviso "Contratti con Promo" nella run di *Growth* o messaggio "⚠️ Contratto con Promo da riallineare" su Telegram | Uno schema di Promo è cambiato o ne è comparsa una versione nuova (su Telegram arriva una volta sola per cambiamento); solo nel riepilogo, se GitHub non rispondeva. Vedere [Contratti con Promo](#contratti-con-promo-promo_posts-e-promo_brief_decisions). |
 
