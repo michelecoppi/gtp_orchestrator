@@ -142,7 +142,7 @@ jobs:
           [ -n "$HC_URL" ] || { echo "SUP_HEALTHCHECK_URL non impostato"; exit 0; }
           curl -fsS -m 10 --retry 3 -o /dev/null "$HC_URL" || echo "ping non riuscito"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.job.outputs.brief == 'true'
         with:
           name: brief-${{ github.run_id }}
